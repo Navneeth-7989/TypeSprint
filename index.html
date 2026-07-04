@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPRINT · Typing Race</title>
+  <meta name="description" content="A high-end single-player typing race. Beat four bots by typing fast and accurately." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Desktop-only gate -->
+  <div id="mobile-gate" class="mobile-gate">
+    <div class="mobile-gate__card">
+      <div class="mobile-gate__icon">🖥️</div>
+      <h2>Desktop only</h2>
+      <p>SPRINT is a keyboard typing race built for a physical keyboard. Please open it on a laptop or desktop to play.</p>
+    </div>
+  </div>
+
+  <div id="app" class="app">
+    <!-- Ambient background -->
+    <div class="bg">
+      <div class="bg__sky"></div>
+      <div class="bg__sun"></div>
+      <div class="bg__stadium"></div>
+      <div class="bg__cloud bg__cloud--1"></div>
+      <div class="bg__cloud bg__cloud--2"></div>
+      <div class="bg__cloud bg__cloud--3"></div>
+      <div class="bg__grain"></div>
+    </div>
+
+    <!-- ============ MENU SCREEN ============ -->
+    <section id="screen-menu" class="screen screen--menu is-active">
+      <div class="menu">
+        <div class="menu__badge">SINGLE PLAYER · YOU vs 4 BOTS</div>
+        <h1 class="menu__title">
+          <span class="menu__title-word">SPRINT</span>
+        </h1>
+        <p class="menu__subtitle">Type the passage. Every correct keystroke pushes your runner down the track. Out-type the bots to win the race.</p>
+
+        <div class="menu__racers">
+          <div class="racer-chip racer-chip--you">
+            <span class="racer-chip__dot"></span> YOU <small>win at 95+ WPM</small>
+          </div>
+          <div class="racer-chip racer-chip--easy">
+            <span class="racer-chip__dot"></span> Rookie <small>~50 WPM</small>
+          </div>
+          <div class="racer-chip racer-chip--medium">
+            <span class="racer-chip__dot"></span> Blaze <small>~78 WPM</small>
+          </div>
+          <div class="racer-chip racer-chip--medium2">
+            <span class="racer-chip__dot"></span> Nova <small>~78 WPM</small>
+          </div>
+          <div class="racer-chip racer-chip--hard">
+            <span class="racer-chip__dot"></span> Titan <small>90–100+ WPM</small>
+          </div>
+        </div>
+
+        <div class="menu__length">
+          <span class="menu__length-label">Race length</span>
+          <div class="seg" id="length-seg">
+            <button class="seg__btn" data-len="short">Short</button>
+            <button class="seg__btn is-selected" data-len="medium">Medium</button>
+            <button class="seg__btn" data-len="long">Long</button>
+          </div>
+        </div>
+
+        <button id="btn-start" class="btn btn--primary btn--xl">
+          <span>Start Race</span>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        </button>
+        <p class="menu__hint">Tip: press <kbd>Enter</kbd> to start · <kbd>Esc</kbd> to reset</p>
+      </div>
+    </section>
+
+    <!-- ============ RACE SCREEN ============ -->
+    <section id="screen-race" class="screen screen--race">
+      <!-- HUD -->
+      <header class="hud">
+        <div class="hud__stat">
+          <div class="hud__value" id="hud-wpm">0</div>
+          <div class="hud__label">WPM</div>
+        </div>
+        <div class="hud__stat">
+          <div class="hud__value" id="hud-acc">100<small>%</small></div>
+          <div class="hud__label">Accuracy</div>
+        </div>
+        <div class="hud__stat hud__stat--pos">
+          <div class="hud__value" id="hud-pos">1<small>st</small></div>
+          <div class="hud__label">Position</div>
+        </div>
+        <div class="hud__stat">
+          <div class="hud__value" id="hud-time">0.0<small>s</small></div>
+          <div class="hud__label">Time</div>
+        </div>
+        <div class="hud__stat">
+          <div class="hud__value" id="hud-progress">0<small>%</small></div>
+          <div class="hud__label">Distance</div>
+        </div>
+      </header>
+
+      <!-- Track -->
+      <div class="track" id="track">
+        <div class="track__distance-marks"></div>
+        <div class="track__lanes" id="lanes"><!-- lanes injected --></div>
+        <div class="track__finish">
+          <div class="track__flag">🏁</div>
+        </div>
+      </div>
+
+      <!-- Typing panel -->
+      <div class="type-panel">
+        <div class="type-panel__glow"></div>
+        <div id="passage" class="passage" aria-hidden="true"><!-- chars injected --></div>
+        <input id="hidden-input" class="hidden-input" autocomplete="off" autocorrect="off"
+               autocapitalize="off" spellcheck="false" aria-label="Type the passage here" />
+        <div class="type-panel__footer">
+          <span id="type-status" class="type-panel__status">Click the passage and start typing…</span>
+          <span class="type-panel__keys"><kbd>Esc</kbd> quit race</span>
+        </div>
+      </div>
+
+      <!-- Countdown overlay -->
+      <div id="countdown" class="countdown">
+        <div class="countdown__num" id="countdown-num">3</div>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS SCREEN ============ -->
+    <section id="screen-results" class="screen screen--results">
+      <div class="results">
+        <div id="results-banner" class="results__banner">RACE COMPLETE</div>
+        <div id="results-place" class="results__place">1st</div>
+        <h2 id="results-title" class="results__title">Finished!</h2>
+        <div class="results__stats">
+          <div class="results__stat"><span id="res-wpm">0</span><small>WPM</small></div>
+          <div class="results__stat"><span id="res-acc">0%</span><small>Accuracy</small></div>
+          <div class="results__stat"><span id="res-time">0s</span><small>Your time</small></div>
+        </div>
+        <div class="results__actions">
+          <button id="btn-again" class="btn btn--primary">Race again</button>
+          <button id="btn-menu" class="btn btn--ghost">Main menu</button>
+        </div>
+        <p class="results__hint">Press <kbd>Enter</kbd> to race again</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer-credit">Built for desktop · keyboard racing</div>
+
+  <script src="game.js"></script>
+</body>
+</html>
