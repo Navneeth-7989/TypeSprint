@@ -818,6 +818,14 @@
     goMenu();
   }
 
+  // Send this client back to its own home screen — used when a rematch is
+  // declined so BOTH the challenger and the decliner leave the arena. No-op if
+  // we're already on the menu (e.g. a challenge declined straight from there).
+  function goHome() {
+    if (S.phase === "menu") return;
+    leaveAndMenu();
+  }
+
   // "Race again" — replay the SAME kind of race we just finished:
   //   solo               → local solo run
   //   1v1 friend match   → re-challenge that friend (popup on their screen)
@@ -1092,6 +1100,7 @@
     challengeFriend: challengeFriend,
     acceptChallenge: acceptChallenge,
     rematch: rematch,
+    goHome: goHome,
   };
 
   async function doRaceNow() {

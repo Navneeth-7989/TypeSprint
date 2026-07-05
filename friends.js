@@ -354,6 +354,9 @@
       hideChallenge();
       net().declineChallenge(c).catch(function () {}); // let the challenger know
       net().clearChallenge(c.id).catch(function () {});
+      // Leave the arena too, so the decliner lands on their own home screen
+      // (the challenger is already sent home when they see the decline).
+      if (game() && game().goHome) game().goHome();
     });
   }
 
