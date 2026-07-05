@@ -31,6 +31,11 @@
   function randomName() {
     return ADJ[Math.floor(Math.random() * ADJ.length)] + NOUN[Math.floor(Math.random() * NOUN.length)];
   }
+  function hashHue(str) {
+    var h = 0;
+    for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+    return h % 360;
+  }
 
   function showError(msg) { errorEl.textContent = msg; errorEl.hidden = false; }
   function clearError() { errorEl.hidden = true; }
@@ -75,8 +80,10 @@
     localStorage.setItem("sprint_name", u.name);
 
     chipName.textContent = u.name;
-    if (u.photoURL) { chipAvatar.src = u.photoURL; chipAvatar.hidden = false; }
-    else { chipAvatar.hidden = true; }
+    // Custom avatar tinted from the username (never the Google photo).
+    var hue = hashHue(u.name);
+    chipAvatar.style.background =
+      "linear-gradient(135deg, hsl(" + hue + " 78% 60%), hsl(" + ((hue + 40) % 360) + " 78% 48%))";
     chip.hidden = false;
 
     gate.classList.add("is-hidden");

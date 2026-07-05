@@ -68,7 +68,9 @@
 
     <!-- Signed-in chip -->
     <div id="user-chip" class="user-chip" hidden>
-      <img id="user-avatar" class="user-chip__avatar" alt="" />
+      <span id="user-avatar" class="user-chip__avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.69-8 6v1h16v-1c0-3.31-3.58-6-8-6z"/></svg>
+      </span>
       <span id="user-name" class="user-chip__name">Racer</span>
       <button id="btn-signout" class="user-chip__signout">Sign out</button>
     </div>
@@ -120,9 +122,17 @@
     <section id="screen-lobby" class="screen screen--menu">
       <div class="lobby">
         <div class="menu__badge" id="lobby-title">Finding racers</div>
-        <p class="lobby__status" id="lobby-status">Looking for players…</p>
+        <h2 class="lobby__headline" id="lobby-status">Get ready…</h2>
 
-        <ul class="lobby__players" id="lobby-players"></ul>
+        <div class="lobby__track">
+          <div class="lobby__lanes" id="lobby-track-lanes"></div>
+          <div class="lobby__finish">🏁</div>
+        </div>
+
+        <div class="lobby__count" id="lobby-count">
+          <span class="lobby__count-label">Race starting in</span>
+          <span class="lobby__count-num" id="lobby-count-num">12</span>
+        </div>
 
         <div class="lobby__code-wrap" id="lobby-code-wrap" hidden>
           <span class="lobby__code-label">Room code</span>
@@ -202,7 +212,7 @@
           <button id="btn-again" class="btn btn--primary">Race again</button>
           <button id="btn-menu" class="btn btn--ghost">Main menu</button>
         </div>
-        <p class="results__hint">Press <kbd>Enter</kbd> to continue</p>
+        <p class="results__hint">Press <kbd>Enter</kbd> to race again</p>
       </div>
     </section>
   </div>

@@ -2,14 +2,13 @@
    SPRINT · Multiplayer network layer (compat / classic script)
    Exposes window.SprintNet for the game script.
 
-   - Quick matchmaking (join an open public room or open a new one)
-   - Private friend rooms (create / join by code or link)
-   - Presence (auto-remove a player on disconnect)
-   - Live progress sync between players
-   - Host-driven race start with deterministic bot fill
-
-   Bots are DETERMINISTIC: the host writes each bot's targetTime,
-   so every client agrees on the outcome with no per-bot traffic.
+   Start model (host-INDEPENDENT):
+     - A room shares one absolute go-live time (meta.startAt).
+     - EVERY client starts the race on its own when that time
+       arrives — no single "host" has to trigger it, so a room
+       can never hang because someone left.
+     - Empty lanes are filled with DETERMINISTIC bots seeded from
+       the roomId, so all clients agree without writing bots.
    ========================================================= */
 (function () {
   "use strict";
@@ -19,8 +18,8 @@
 
   var MAX_PLAYERS    = 5;
   var TARGET_TOTAL   = 5;
-  var JOIN_WINDOW_MS = 12000;
-  var COUNTDOWN_MS   = 4000;
+  var JOIN_WINDOW_MS = 12000; // public: gather + countdown window
+  var COUNTDOWN_MS   = 4000;  // 3-2-1-GO shown at the end of the window
 
   var cfg = {
     makePassage: function () { return "the quick brown fox jumps over the lazy dog"; },
@@ -28,13 +27,10 @@
   };
 
   var offset = 0;
-  if (db) {
-    db.ref(".info/serverTimeOffset").on("value", function (s) { offset = s.val() || 0; });
-  }
+  if (db) db.ref(".info/serverTimeOffset").on("value", function (s) { offset = s.val() || 0; });
   function serverNow() { return Date.now() + offset; }
 
-  var cur = null; // active room state
-
+  var cur = null;
   function me() { return window.SPRINT_USER; }
 
   function playerRecord(u) {
@@ -59,7 +55,7 @@
 
     return db.ref("matchmaking").transaction(function (m) {
       var open = m && m.roomId && m.status === "waiting" &&
-                 (m.count || 0) < MAX_PLAYERS && (m.startAt || 0) > now;
+                 (m.count || 0) < MAX_PLAYERS && (m.startAt || 0) > now + COUNTDOWN_MS;
       if (open) {
         decision = { action: "join", roomId: m.roomId };
         m.count = (m.count || 0) + 1;
@@ -129,20 +125,18 @@
         cur = {
           roomId: roomId, isPrivate: !!opts.isPrivate, isHost: !!opts.isHost,
           me: u.uid, playerRef: playerRef, code: opts.code || null,
-          starting: false, lastSend: 0, cb: cb, tickTimer: null,
+          started: false, raceState: null, lastSend: 0, cb: cb,
+          enteredAt: Date.now(), tickTimer: null,
           roomRef: db.ref("rooms/" + roomId), roomCb: null, lastRoom: null,
         };
         cur.roomCb = function (snap) { onRoomSnap(snap); };
         cur.roomRef.on("value", cur.roomCb);
-        cur.tickTimer = setInterval(function () { hostMaybeStart(cur && cur.lastRoom); }, 500);
+        cur.tickTimer = setInterval(onTick, 400);
       });
     });
   }
 
-  function onRoomSnap(snap) {
-    if (!cur) return;
-    var val = snap.val();
-    if (!val || !val.meta) { cur.cb && cur.cb.onRoom && cur.cb.onRoom(null); return; }
+  function buildState(val) {
     var meta = val.meta;
     var playersObj = val.players || {};
     var players = Object.keys(playersObj).map(function (uid) {
@@ -156,7 +150,7 @@
       };
     }).sort(function (a, b) { return a.joinedAt - b.joinedAt; });
 
-    var state = {
+    return {
       roomId: cur.roomId, isPrivate: cur.isPrivate, isHost: cur.isHost,
       code: cur.code || meta.code || null, status: meta.status,
       passage: meta.passage || null, startAt: meta.startAt || null,
@@ -164,46 +158,73 @@
       bots: meta.bots || [], me: cur.me, players: players,
       serverNow: serverNow(), joinWindowMs: JOIN_WINDOW_MS, countdownMs: COUNTDOWN_MS,
     };
+  }
+
+  function onRoomSnap(snap) {
+    if (!cur) return;
+    var val = snap.val();
+    if (!val || !val.meta) { emit(null); return; }
+    var state = buildState(val);
     cur.lastRoom = state;
-    cur.cb && cur.cb.onRoom && cur.cb.onRoom(state);
 
-    if (!playersObj[cur.me]) return; // we were removed
-    hostMaybeStart(state);
+    if (cur.started && cur.raceState) {
+      // race is running locally — keep feeding fresh opponent data
+      var live = Object.assign({}, cur.raceState, { players: state.players, serverNow: serverNow() });
+      emit(live);
+      return;
+    }
+    if (!val.players || !val.players[cur.me]) return; // we were removed
+    emit(state);
+    maybeStartLocal(state);
   }
 
-  function hostMaybeStart(state) {
-    if (!cur || !state || !cur.isHost || cur.starting) return;
-    if (state.status !== "waiting") return;
-    var full = state.players.length >= state.maxPlayers;
-    var windowClosed = !cur.isPrivate && state.startAt && serverNow() >= state.startAt;
-    if (full || windowClosed) beginStart(state);
+  // 400ms heartbeat: refresh the lobby countdown + guarantee the start
+  function onTick() {
+    if (!cur || cur.started) return;
+    var state = cur.lastRoom;
+    if (!state || state.status === "done") return;
+    state = Object.assign({}, state, { serverNow: serverNow() });
+    emit(state);
+    maybeStartLocal(state);
   }
 
-  function hostStart() { if (cur && cur.lastRoom) beginStart(cur.lastRoom); }
+  function emit(state) { if (cur && cur.cb && cur.cb.onRoom) cur.cb.onRoom(state); }
 
-  function beginStart(state) {
-    if (!cur || cur.starting) return;
-    cur.starting = true;
+  // Any client starts the race on its own once the shared go-live time hits.
+  function maybeStartLocal(state) {
+    if (!cur || cur.started) return;
+    var goLive = state.startAt; // absolute ms; null for a private room not yet started
+    if (!goLive) return;
+    var byClock  = serverNow() >= (goLive - COUNTDOWN_MS);
+    var byBackup = (Date.now() - cur.enteredAt) >= (JOIN_WINDOW_MS + 3000); // clock-skew safety net
+    if (!byClock && !byBackup) return;
 
-    var real = state.players.length;
-    var botCount;
-    if (cur.isPrivate) botCount = real >= 2 ? 0 : (TARGET_TOTAL - real);
-    else botCount = Math.max(0, TARGET_TOTAL - real);
+    cur.started = true;
+    var seed = cur.roomId;
+    var passage = cfg.makePassage(seed);
+    var realCount = state.players.length;
+    var botCount = cur.isPrivate ? (realCount >= 2 ? 0 : (TARGET_TOTAL - realCount))
+                                 : Math.max(0, TARGET_TOTAL - realCount);
+    var bots = cfg.makeBots(passage, botCount, seed);
+    var raceStartAt = Math.max(goLive, serverNow() + 1500); // guarantee a short countdown
 
-    var passage = cfg.makePassage();
-    var bots = cfg.makeBots(passage, botCount);
-    var raceStartAt = serverNow() + COUNTDOWN_MS;
-    var roomId = cur.roomId, isPrivate = cur.isPrivate;
-
-    db.ref("rooms/" + roomId + "/meta").update({
-      status: "racing", passage: passage, bots: bots, raceStartAt: raceStartAt, startAt: null,
-    }).then(function () {
-      if (!isPrivate) {
-        db.ref("matchmaking").transaction(function (m) {
-          return (m && m.roomId === roomId) ? null : m;
-        });
-      }
+    cur.raceState = Object.assign({}, state, {
+      status: "racing", passage: passage, bots: bots, raceStartAt: raceStartAt, serverNow: serverNow(),
     });
+    emit(cur.raceState);
+
+    // free the public matchmaking slot so later players open a fresh room
+    if (!cur.isPrivate && cur.isHost) {
+      db.ref("matchmaking").transaction(function (m) {
+        return (m && m.roomId === cur.roomId) ? null : m;
+      });
+    }
+  }
+
+  // Private-room host presses "Start": set a shared go-live time; every client reacts.
+  function hostStart() {
+    if (!cur || !cur.lastRoom) return;
+    db.ref("rooms/" + cur.roomId + "/meta").update({ startAt: serverNow() + COUNTDOWN_MS });
   }
 
   /* ===================== LIVE SYNC ===================== */
@@ -227,17 +248,6 @@
       acc: Math.round(data.acc == null ? 100 : data.acc),
       finished: true, finishTime: data.time || 0,
     }).catch(function () {});
-    if (cur.isHost) maybeCloseRoom();
-  }
-
-  function maybeCloseRoom() {
-    if (!cur) return;
-    var roomId = cur.roomId;
-    db.ref("rooms/" + roomId + "/players").once("value").then(function (snap) {
-      var players = snap.val() || {};
-      var allDone = Object.keys(players).every(function (k) { return players[k].finished; });
-      if (allDone) db.ref("rooms/" + roomId + "/meta").update({ status: "done" }).catch(function () {});
-    });
   }
 
   /* ===================== LEAVE / CLEANUP ===================== */

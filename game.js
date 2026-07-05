@@ -133,7 +133,9 @@
     // lobby
     lobbyTitle: $("#lobby-title"),
     lobbyStatus: $("#lobby-status"),
-    lobbyPlayers: $("#lobby-players"),
+    lobbyTrackLanes: $("#lobby-track-lanes"),
+    lobbyCount: $("#lobby-count"),
+    lobbyCountNum: $("#lobby-count-num"),
     lobbyCodeWrap: $("#lobby-code-wrap"),
     lobbyCode: $("#lobby-code"),
     btnCopyLink: $("#btn-copy-link"),
@@ -163,6 +165,20 @@
   /* ---------- helpers ---------- */
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
+  // Seeded RNG so every client in a room generates the SAME passage + bots.
+  function hashSeed(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
   const ordinal = (n) => ["1st", "2nd", "3rd", "4th", "5th"][n - 1] || n + "th";
   const net = () => window.SprintNet;
   const user = () => window.SPRINT_USER || { uid: "local", name: "You", isGuest: true, photoURL: null };
@@ -173,34 +189,34 @@
   }
 
   /* ---------- passage + bot builders (shared with the network layer) ---------- */
-  let passageBag = [];
-  function nextPassageIndex() {
-    if (passageBag.length === 0) {
-      passageBag = PASSAGES.map((_, i) => i);
-      for (let i = passageBag.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [passageBag[i], passageBag[j]] = [passageBag[j], passageBag[i]];
-      }
-    }
-    return passageBag.pop();
-  }
-  function makePassage() {
+  // Passage is randomized each race; with a seed (the roomId) it is identical
+  // on every client so multiplayer racers all type the same text.
+  function makePassage(seed) {
+    const rnd = seed != null ? mulberry32(hashSeed(String(seed))) : Math.random;
     const lengths = Object.keys(LENGTH_SENTENCES);
-    const len = lengths[Math.floor(Math.random() * lengths.length)];
+    const len = lengths[Math.floor(rnd() * lengths.length)];
     const n = LENGTH_SENTENCES[len];
     const parts = [];
-    for (let i = 0; i < n; i++) parts.push(PASSAGES[nextPassageIndex()]);
+    const used = {};
+    for (let i = 0; i < n; i++) {
+      let idx = Math.floor(rnd() * PASSAGES.length);
+      let guard = 0;
+      while (used[idx] && guard++ < PASSAGES.length) idx = (idx + 1) % PASSAGES.length;
+      used[idx] = true;
+      parts.push(PASSAGES[idx]);
+    }
     return parts.join(" ");
   }
 
-  // Deterministic bots: each carries a targetTime (seconds to finish) so every
-  // client renders identical motion and agrees on the outcome.
-  function makeBots(passage, count) {
+  // Deterministic bots: each carries a targetTime (seconds to finish). With a
+  // seed, every client generates identical bots and agrees on the outcome.
+  function makeBots(passage, count, seed) {
+    const rnd = seed != null ? mulberry32(hashSeed(String(seed) + ":bots")) : Math.random;
     const words = passage.length / 5;
     const bots = [];
     for (let i = 0; i < count; i++) {
       const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
-      const wpm = t.baseWpm + rand(-3, 3);
+      const wpm = t.baseWpm + (rnd() * 6 - 3);
       const targetTime = (words / wpm) * 60;
       bots.push({
         id: "bot" + i,
@@ -210,7 +226,7 @@
         look: { ...t.look, color: t.color },
         wpm: Math.round(wpm),
         targetTime,
-        phase: rand(0, Math.PI * 2),
+        phase: rnd() * Math.PI * 2,
       });
     }
     return bots;
@@ -659,7 +675,7 @@
     el.resWpm.textContent = yourWpm;
     el.resAcc.textContent = acc + "%";
     el.resTime.textContent = yourTime.toFixed(1) + "s";
-    el.btnAgain.textContent = S.mode === "multi" ? "Back to menu" : "Race again";
+    el.btnAgain.textContent = "Race again";
     el.screens.results.classList.add("is-active");
   }
 
@@ -690,6 +706,7 @@
     S.phase = "menu";
     S.mode = "solo";
     S.room = null;
+    S._lobbySig = null;
     el.countdown.classList.remove("is-active");
     el.screens.results.classList.remove("is-active");
     if (el.menuYou) el.menuYou.textContent = user().name;
@@ -699,6 +716,14 @@
   async function leaveAndMenu() {
     try { await net().leave(); } catch {}
     goMenu();
+  }
+
+  // "Race again" — start a fresh race the same way the last one began:
+  // multiplayer quick-match (real players if present, otherwise bots) or solo.
+  function raceAgain() {
+    el.screens.results.classList.remove("is-active");
+    if (S.mode === "multi") doRaceNow();
+    else startSolo();
   }
 
   /* =====================  MULTIPLAYER LOBBY  ===================== */
@@ -724,42 +749,66 @@
     }
   }
 
+  // The roster shown on the preview track = real players + the bots that will
+  // fill the empty lanes (mirrors the actual bot-fill logic).
+  function buildLobbyRoster(room) {
+    const list = room.players.map((p, i) => {
+      const look = p.uid === room.me
+        ? YOU_LOOK
+        : PLAYER_LOOKS[(room.players.filter((x, j) => x.uid !== room.me && j < i).length) % PLAYER_LOOKS.length];
+      return { name: p.name, color: look.color, isYou: p.uid === room.me };
+    });
+    const fill = room.isPrivate
+      ? (room.players.length < 2 ? 5 - room.players.length : 0)
+      : Math.max(0, 5 - room.players.length);
+    for (let i = 0; i < fill; i++) {
+      const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
+      list.push({ name: t.name, color: t.color, isYou: false });
+    }
+    return list;
+  }
+
   function renderLobby(room) {
     S.phase = "lobby";
     showScreen("lobby");
+    const waiting = room.isPrivate && !room.startAt; // private room, host hasn't started
     el.lobbyTitle.textContent = room.isPrivate ? "Private race" : "Finding racers";
 
-    // players list
-    el.lobbyPlayers.innerHTML = room.players.map((p, i) => {
-      const look = p.uid === room.me ? YOU_LOOK : PLAYER_LOOKS[(room.players.filter((x, j) => x.uid !== room.me && j < i).length) % PLAYER_LOOKS.length];
-      const you = p.uid === room.me ? ' <span class="lobby-you">you</span>' : "";
-      const host = p.isHost ? ' <span class="lobby-host">host</span>' : "";
-      return `<li class="lobby-player">
-        <span class="lobby-dot" style="background:${look.color}"></span>
-        <span class="lobby-pname">${escapeHtml(p.name)}${you}${host}</span>
-      </li>`;
-    }).join("");
+    // track preview — rebuild only when the roster changes (no flicker on the tick)
+    const roster = buildLobbyRoster(room);
+    const sig = roster.map((r) => r.name + r.color + r.isYou).join("|");
+    if (sig !== S._lobbySig) {
+      S._lobbySig = sig;
+      el.lobbyTrackLanes.innerHTML = roster.map((r) => `
+        <div class="lobby-lane">
+          <span class="lobby-lane__tag" style="color:${r.color}">
+            <span class="lobby-lane__dot" style="background:${r.color}"></span>
+            ${escapeHtml(r.name)}${r.isYou ? " <em>you</em>" : ""}
+          </span>
+          <span class="lobby-lane__strip"><span class="lobby-lane__runner" style="--c:${r.color}"></span></span>
+        </div>`).join("");
+    }
 
-    // status line
-    if (room.isPrivate) {
-      el.lobbyCodeWrap.hidden = false;
-      el.lobbyCode.textContent = room.code || "—";
-      const canStart = room.isHost;
-      el.btnLobbyStart.hidden = !canStart;
-      el.btnLobbyStart.disabled = room.players.length < 1;
-      el.lobbyStatus.textContent = room.isHost
-        ? "Share the code, then start when your friends are in."
-        : "Waiting for the host to start…";
-      el.lobbyHint.textContent = room.players.length < 2
-        ? "Tip: if you start solo, bots will fill the lanes."
-        : "";
+    el.lobbyCodeWrap.hidden = !room.isPrivate;
+    if (room.isPrivate) el.lobbyCode.textContent = room.code || "—";
+
+    if (waiting) {
+      el.lobbyStatus.textContent = room.isHost ? "Ready when you are" : "Waiting for the host…";
+      el.lobbyCount.hidden = true;
+      el.btnLobbyStart.hidden = !room.isHost;
+      el.lobbyHint.textContent = room.isHost
+        ? "Share the code — or press Start and bots fill the rest."
+        : "The host will start the race soon.";
     } else {
-      el.lobbyCodeWrap.hidden = true;
+      el.lobbyCount.hidden = false;
       el.btnLobbyStart.hidden = true;
-      const secs = Math.max(0, Math.ceil((room.startAt - room.serverNow) / 1000));
-      el.lobbyStatus.textContent =
-        `${room.players.length} racer${room.players.length > 1 ? "s" : ""} ready · starting in ${secs}s`;
-      el.lobbyHint.textContent = "Empty lanes will be filled with bots.";
+      const secs = Math.max(0, Math.ceil((room.startAt - room.countdownMs - room.serverNow) / 1000));
+      el.lobbyCountNum.textContent = secs;
+      el.lobbyStatus.textContent = secs > 0 ? "Get ready!" : "Go!";
+      const others = room.players.length - 1;
+      el.lobbyHint.textContent = others > 0
+        ? `Racing ${others} real ${others === 1 ? "player" : "players"} + bots`
+        : "Filling the lanes with bots…";
     }
   }
 
@@ -861,7 +910,7 @@
     el.btnCopyLink?.addEventListener("click", copyInviteLink);
 
     // results
-    el.btnAgain?.addEventListener("click", () => (S.mode === "multi" ? leaveAndMenu() : startSolo()));
+    el.btnAgain?.addEventListener("click", raceAgain);
     el.btnMenu?.addEventListener("click", leaveAndMenu);
 
     // typing
@@ -880,7 +929,7 @@
         doRaceNow();
       } else if (S.phase === "done") {
         e.preventDefault();
-        S.mode === "multi" ? leaveAndMenu() : startSolo();
+        raceAgain();
       }
     });
 
