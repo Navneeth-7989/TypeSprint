@@ -76,6 +76,24 @@
 
   const YOU_LOOK = { skin: "#f4d0a8", hair: "#2a1c10", pants: "#5f4a1e", color: "#ffd23f" };
 
+  // Rotating facts / records / tips shown while the lobby fills up.
+  const TIPS = [
+    { icon: "🏆", text: "World record: Stella Pajunas typed 216 WPM way back in 1946." },
+    { icon: "🏆", text: "Barbara Blackburn held the Guinness record at 212 WPM peak." },
+    { icon: "⌨️", text: "The average typist manages ~40 WPM. Pros cruise past 70." },
+    { icon: "🎯", text: "Accuracy beats speed — one typo can cost more than three careful keys." },
+    { icon: "👀", text: "Don't look down. Trust your fingers and build muscle memory." },
+    { icon: "⏱️", text: "10 focused minutes a day beats one long marathon session." },
+    { icon: "🌊", text: "Keep a steady rhythm — smooth is fast; bursts and stalls are slow." },
+    { icon: "🕰️", text: "QWERTY was designed in 1874 to slow typists and stop key jams." },
+    { icon: "🚀", text: "Touch typing can literally double your hunt-and-peck speed." },
+    { icon: "🧠", text: "Let your eyes read a few characters ahead of your fingers." },
+    { icon: "🏠", text: "F and J have little bumps so your fingers always find home row." },
+    { icon: "💆", text: "Relax your shoulders and wrists — tension is the enemy of speed." },
+    { icon: "📈", text: "Consistency compounds: small daily gains add up shockingly fast." },
+    { icon: "🔥", text: "Warm up your hands first — typing fast is a finger sport." },
+  ];
+
   // colors handed to real opponents, in join order (you always keep gold)
   const PLAYER_LOOKS = [
     { color: "#7cf3ff", skin: "#e8c4a0", hair: "#20140a", pants: "#12414a" },
@@ -138,6 +156,9 @@
     lobbyTrackLanes: $("#lobby-track-lanes"),
     lobbyCount: $("#lobby-count"),
     lobbyCountNum: $("#lobby-count-num"),
+    lobbyTip: $("#lobby-tip"),
+    lobbyTipIcon: $("#lobby-tip-icon"),
+    lobbyTipText: $("#lobby-tip-text"),
     lobbyCodeWrap: $("#lobby-code-wrap"),
     lobbyCode: $("#lobby-code"),
     btnCopyLink: $("#btn-copy-link"),
@@ -437,6 +458,7 @@
 
   /* ---------- multiplayer start ---------- */
   function enterMultiRace(room) {
+    stopLobbyTips();
     S.mode = "multi";
     resetRaceState();
     S.room = room;
@@ -748,6 +770,7 @@
 
   function goMenu() {
     cancelAnimationFrame(S.rafId);
+    stopLobbyTips();
     S.phase = "menu";
     S.mode = "solo";
     S.room = null;
@@ -813,9 +836,31 @@
     return list;
   }
 
+  let _tipIdx = -1;
+  function showRandomTip() {
+    if (!el.lobbyTip) return;
+    let i = Math.floor(Math.random() * TIPS.length);
+    if (i === _tipIdx) i = (i + 1) % TIPS.length; // don't repeat the same tip twice
+    _tipIdx = i;
+    el.lobbyTipIcon.textContent = TIPS[i].icon;
+    el.lobbyTipText.textContent = TIPS[i].text;
+    el.lobbyTip.classList.remove("is-in");
+    void el.lobbyTip.offsetWidth; // restart the fade-in
+    el.lobbyTip.classList.add("is-in");
+  }
+  function startLobbyTips() {
+    if (S._tipTimer) return;
+    showRandomTip();
+    S._tipTimer = setInterval(showRandomTip, 4200);
+  }
+  function stopLobbyTips() {
+    if (S._tipTimer) { clearInterval(S._tipTimer); S._tipTimer = null; }
+  }
+
   function renderLobby(room) {
     S.phase = "lobby";
     showScreen("lobby");
+    startLobbyTips();
     const waiting = room.isPrivate && !room.startAt; // private room, host hasn't started
     el.lobbyTitle.textContent = room.isPrivate ? "Private race" : "Finding racers";
 
