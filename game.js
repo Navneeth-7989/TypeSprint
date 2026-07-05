@@ -428,6 +428,7 @@
   function startSolo() {
     if (S.phase === "countdown" || S.phase === "racing") return;
     S.mode = "solo";
+    S.lastRace = null;
     resetRaceState();
     buildSoloRacers();
     enterRaceScreen();
@@ -465,10 +466,24 @@
   function enterMultiRace(room) {
     stopLobbyTips();
     hideWaitModal();          // challenge accepted — drop the "waiting" popup
-    S.pendingChallenge = null; // already answered; nothing left to cancel
+    S.pendingChallenges = []; // already answered; nothing left to cancel
     S.mode = "multi";
     resetRaceState();
     S.room = room;
+    S.raceRoomId = room.roomId; // the race we're now running (see onRoom sync guard)
+
+    // Remember who we raced + how, so "Race again" can rematch the same people
+    // instead of dropping into a random quick match.
+    //   challenge → re-challenge that one friend (auto-start)
+    //   private   → reopen a private room and invite everyone back
+    //   public    → a fresh quick match (random players + bots)
+    S.lastRace = {
+      kind: room.challenge ? "challenge" : (room.isPrivate ? "private" : "public"),
+      wasHost: !!room.isHost, // only the private-room host may launch a rematch
+      opponents: room.players
+        .filter((p) => p.uid !== room.me && p.uid)
+        .map((p) => ({ uid: p.uid, name: p.name })),
+    };
     S.raceStartAt = room.raceStartAt;
     buildMultiRacers(room);
     enterRaceScreen();
@@ -753,7 +768,9 @@
     el.resWpm.textContent = yourWpm;
     el.resAcc.textContent = acc + "%";
     el.resTime.textContent = yourTime.toFixed(1) + "s";
-    el.btnAgain.textContent = "Race again";
+    // In a private room only the host can rematch — tell everyone else upfront.
+    const privateGuest = S.mode === "multi" && S.lastRace && S.lastRace.kind === "private" && !S.lastRace.wasHost;
+    el.btnAgain.textContent = privateGuest ? "Waiting for host…" : "Race again";
     renderLeaderboard(yourTime, yourWpm);
     el.screens.results.classList.add("is-active");
   }
@@ -788,6 +805,7 @@
     S.phase = "menu";
     S.mode = "solo";
     S.room = null;
+    S.raceRoomId = null;
     S._lobbySig = null;
     el.countdown.classList.remove("is-active");
     el.screens.results.classList.remove("is-active");
@@ -800,12 +818,28 @@
     goMenu();
   }
 
-  // "Race again" — start a fresh race the same way the last one began:
-  // multiplayer quick-match (real players if present, otherwise bots) or solo.
+  // "Race again" — replay the SAME kind of race we just finished:
+  //   solo               → local solo run
+  //   1v1 friend match   → re-challenge that friend (popup on their screen)
+  //   private room       → rematch invite to everyone who was in the room
+  //   public quick match → a fresh random quick match
   function raceAgain() {
-    el.screens.results.classList.remove("is-active");
-    if (S.mode === "multi") doRaceNow();
-    else startSolo();
+    const hideResults = () => el.screens.results.classList.remove("is-active");
+    if (S.mode !== "multi") { hideResults(); startSolo(); return; }
+    const lr = S.lastRace;
+    if (lr && (lr.kind === "challenge" || lr.kind === "private")) {
+      // Private room: only the host may launch the rematch, so there's exactly
+      // one initiator and everyone else just waits for the invite popup.
+      if (lr.kind === "private" && !lr.wasHost) {
+        if (el.resultsNote) { el.resultsNote.hidden = false; el.resultsNote.textContent = "Only the host can start a rematch — hang tight."; }
+        return; // stay on the results screen
+      }
+      const opps = (lr.opponents || []).filter((o) => o && o.uid);
+      if (opps.length) { hideResults(); rematch(opps, lr.kind === "private"); return; }
+      hideResults(); goMenu(); menuToast("Your rivals already left."); return;
+    }
+    hideResults();
+    doRaceNow();
   }
 
   /* =====================  MULTIPLAYER LOBBY  ===================== */
@@ -825,7 +859,10 @@
       return;
     }
     if (room.status === "racing") {
-      if (S.phase === "racing" || S.phase === "done") {
+      // Only sync when it's the race we're already running. A different roomId
+      // means a fresh race (e.g. a rematch started from the results screen),
+      // so we must enter it even though our phase is still "racing"/"done".
+      if (S.raceRoomId === room.roomId && (S.phase === "racing" || S.phase === "done")) {
         syncRemotes(room);        // live update during the race
       } else {
         enterMultiRace(room);     // first transition into the race
@@ -973,10 +1010,8 @@
   }
 
   function clearPendingChallenge() {
-    if (S.pendingChallenge && S.pendingChallenge.cancel) {
-      S.pendingChallenge.cancel();
-    }
-    S.pendingChallenge = null;
+    (S.pendingChallenges || []).forEach((ch) => { if (ch && ch.cancel) ch.cancel(); });
+    S.pendingChallenges = [];
   }
 
   // Challenger backs out before the friend answers.
@@ -1005,27 +1040,58 @@
   /* ---------- friends bridge ----------
      The social UI (friends.js) drives races through this tiny hook so it can
      reuse the exact room flow the menu uses — no duplicate lobby logic. */
+  // Fire a direct 1v1 challenge (also the 1v1 "Race again" rematch path): spin
+  // up a code-less challenge room, invite the friend, and show a "waiting"
+  // popup. No lobby, no Start button — the race auto-starts (net layer) the
+  // instant the friend joins.
+  function challengeFriend(friendUid, friendName, isRematch) {
+    if (!net()) return Promise.reject(new Error("Still connecting…"));
+    closeFriends();
+    el.screens.results.classList.remove("is-active");
+    S.challengeName = friendName || "your friend";
+    return net().createPrivate(roomCbs, { challenge: true }).then((r) =>
+      net().sendChallenge(friendUid, { roomId: r.roomId, rematch: !!isRematch })
+    ).then((ch) => {
+      (S.pendingChallenges = S.pendingChallenges || []).push(ch);
+      showWaitModal("Waiting for " + S.challengeName + "…", "The race starts the moment they accept.");
+    });
+  }
+
+  // Accept an incoming 1v1 / rematch challenge by joining the challenger's room.
+  function acceptChallenge(roomId) {
+    closeFriends();
+    doJoinRoomId(roomId);
+  }
+
+  // "Race again" for a friend match. A 1v1 re-challenges that single friend
+  // (auto-start, same as the original challenge). A private room reopens a
+  // fresh private room and drops a rematch invite on everyone who was just
+  // racing, then parks the host in the lobby to Start once they've rejoined.
+  function rematch(opponents, isPrivateRoom) {
+    if (!net()) return Promise.reject(new Error("Still connecting…"));
+    const others = (opponents || []).filter((o) => o && o.uid);
+    if (!others.length) { goMenu(); menuToast("No one left to rematch."); return Promise.resolve(); }
+
+    if (!isPrivateRoom && others.length === 1) {
+      return challengeFriend(others[0].uid, others[0].name, true);
+    }
+
+    el.screens.results.classList.remove("is-active");
+    clearPendingChallenge();
+    return net().createPrivate(roomCbs).then((res) => {
+      S.inviteRoomId = res.roomId;
+      return Promise.all(others.map((o) =>
+        net().sendChallenge(o.uid, { roomId: res.roomId, rematch: true })
+          .then((ch) => { (S.pendingChallenges = S.pendingChallenges || []).push(ch); })
+          .catch(() => {})
+      ));
+    });
+  }
+
   window.SprintGame = {
-    // Fire a direct 1v1 challenge: spin up a code-less challenge room, invite
-    // the friend, and show a "waiting" popup. No lobby, no Start button — the
-    // race auto-starts (net layer) the instant the friend joins.
-    challengeFriend(friendUid, friendName) {
-      if (!net()) return Promise.reject(new Error("Still connecting…"));
-      closeFriends();
-      S.challengeName = friendName || "your friend";
-      return net().createPrivate(roomCbs, { challenge: true }).then(({ roomId }) =>
-        net().sendChallenge(friendUid, { roomId })
-      ).then((ch) => {
-        S.pendingChallenge = ch;
-        showWaitModal("Waiting for " + S.challengeName + "…", "The race starts the moment they accept.");
-      });
-    },
-    // Accept an incoming 1v1 challenge by joining the challenger's room. The
-    // host auto-starts, so the joiner drops straight into the countdown.
-    acceptChallenge(roomId) {
-      closeFriends();
-      doJoinRoomId(roomId);
-    },
+    challengeFriend: challengeFriend,
+    acceptChallenge: acceptChallenge,
+    rematch: rematch,
   };
 
   async function doRaceNow() {

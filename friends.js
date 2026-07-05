@@ -289,6 +289,12 @@
   function showChallenge(c) {
     S.challenge = c;
     el.modalFrom.textContent = c.fromName;
+    // Swap the trailing sentence when this is a "Race again" rematch invite.
+    var p = el.modalFrom.parentNode;
+    if (p) {
+      while (p.lastChild && p.lastChild !== el.modalFrom) p.removeChild(p.lastChild);
+      p.appendChild(document.createTextNode(c.rematch ? " wants a rematch!" : " challenges you to a 1v1."));
+    }
     el.modal.hidden = false;
     updateBadge();
   }
@@ -325,8 +331,12 @@
       renderRequests();
       updateBadge();
     });
+  }
 
-    net().watchChallenges(onChallenges);
+  // Challenge/rematch invites must reach guests too (they can be in a private
+  // room), so this runs independently of the Google-only social subscriptions.
+  function watchChallengesAlways() {
+    if (net()) net().watchChallenges(onChallenges);
   }
 
   /* ---------------- wiring ---------------- */
@@ -355,8 +365,8 @@
       setTimeout(function () { var s = $("#fr-search-input"); s && s.focus(); }, 30);
     });
     renderPane();
-    if (net()) startSubs();
-    else document.addEventListener("sprint:net-ready", startSubs, { once: true });
+    if (net()) { startSubs(); watchChallengesAlways(); }
+    else document.addEventListener("sprint:net-ready", function () { startSubs(); watchChallengesAlways(); }, { once: true });
   }
 
   // Wait until we know who the user is.

@@ -471,15 +471,18 @@
     return function () { ref.off("value", handler); };
   }
 
+  // Guests can't send friend requests, but they CAN sit in a private room and
+  // therefore must be able to receive a rematch invite — so this is open to
+  // any signed-in user, not just real accounts.
   function watchChallenges(cb) {
     var u = me();
-    if (!isReal(u)) { cb([]); return function () {}; }
+    if (!u || !db) { cb([]); return function () {}; }
     var ref = db.ref("challenges/" + u.uid);
     var handler = ref.on("value", function (snap) {
       var list = [];
       snap.forEach(function (c) {
         var v = c.val() || {};
-        list.push({ id: c.key, fromUid: v.fromUid, fromName: v.fromName || "A racer", roomId: v.roomId, code: v.code || null, at: v.at || 0 });
+        list.push({ id: c.key, fromUid: v.fromUid, fromName: v.fromName || "A racer", roomId: v.roomId, code: v.code || null, rematch: !!v.rematch, at: v.at || 0 });
       });
       cb(list);
     });
@@ -492,7 +495,8 @@
     // Auto-cancel the invite if the challenger drops before it's answered.
     ref.onDisconnect().remove();
     return ref.set({
-      fromUid: u.uid, fromName: u.name, roomId: data.roomId, code: data.code || null, at: TS,
+      fromUid: u.uid, fromName: u.name, roomId: data.roomId, code: data.code || null,
+      rematch: !!data.rematch, at: TS,
     }).then(function () {
       return {
         id: ref.key, toUid: toUid, roomId: data.roomId,
