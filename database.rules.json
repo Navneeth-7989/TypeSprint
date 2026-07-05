@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "matchmaking": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    "codes": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+        "meta": {
+          ".write": "auth != null && (!data.exists() || !data.child('host').exists() || data.child('host').val() === auth.uid)"
+        },
+        "players": {
+          "$uid": {
+            ".write": "auth != null && $uid === auth.uid"
+          }
+        }
+      }
+    }
+  }
+}

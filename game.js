@@ -1,6 +1,7 @@
 /* =========================================================
    SPRINT · Typing Race — game logic
-   Single player: YOU vs 4 bots (1 easy, 2 medium, 1 hard).
+   Race real people (via Firebase) and/or bots. One unified
+   "racer" model drives solo practice and live multiplayer.
    No frameworks, no build step. Runs from a static file host.
    ========================================================= */
 (() => {
@@ -64,52 +65,82 @@
 
   const LENGTH_SENTENCES = { short: 1, medium: 2, long: 3 };
 
-  /* ---------- racer roster ---------- */
-  // baseWpm = target average; jitter = per-tick variance;
-  // burstChance/burstWpm = occasional surges (Titan only, per spec).
-  const BOTS = [
-    { id: "easy",   name: "Rookie", color: "#6ee7b7", baseWpm: 52, jitter: 5,  burstChance: 0,     burstWpm: 0,
-      look: { skin: "#f2c9a0", hair: "#3a2b1a", pants: "#22543d" } },
-    { id: "med1",   name: "Blaze",  color: "#7cc4ff", baseWpm: 78, jitter: 6,  burstChance: 0,     burstWpm: 0,
-      look: { skin: "#e8b98a", hair: "#1a1a1a", pants: "#1e3a5f" } },
-    { id: "med2",   name: "Nova",   color: "#b79bff", baseWpm: 77, jitter: 6,  burstChance: 0,     burstWpm: 0,
-      look: { skin: "#d9a878", hair: "#4a2c1a", pants: "#3b2a5f" } },
-    { id: "hard",   name: "Titan",  color: "#ff6b81", baseWpm: 93, jitter: 5,  burstChance: 0.16,  burstWpm: 104,
-      look: { skin: "#c89060", hair: "#0f0f0f", pants: "#5f1e2a" } },
+  /* ---------- bot templates (visual identity + skill) ---------- */
+  const BOT_TEMPLATES = [
+    { name: "Rookie", color: "#6ee7b7", baseWpm: 52, sub: "easy",   look: { skin: "#f2c9a0", hair: "#3a2b1a", pants: "#22543d" } },
+    { name: "Blaze",  color: "#7cc4ff", baseWpm: 78, sub: "medium", look: { skin: "#e8b98a", hair: "#1a1a1a", pants: "#1e3a5f" } },
+    { name: "Nova",   color: "#b79bff", baseWpm: 77, sub: "medium", look: { skin: "#d9a878", hair: "#4a2c1a", pants: "#3b2a5f" } },
+    { name: "Titan",  color: "#ff6b81", baseWpm: 93, sub: "hard",   look: { skin: "#c89060", hair: "#0f0f0f", pants: "#5f1e2a" } },
+    { name: "Comet",  color: "#ffa94d", baseWpm: 68, sub: "medium", look: { skin: "#e6b58a", hair: "#2a1a0a", pants: "#5f3a1e" } },
   ];
 
   const YOU_LOOK = { skin: "#f4d0a8", hair: "#2a1c10", pants: "#5f4a1e", color: "#ffd23f" };
 
+  // colors handed to real opponents, in join order (you always keep gold)
+  const PLAYER_LOOKS = [
+    { color: "#7cf3ff", skin: "#e8c4a0", hair: "#20140a", pants: "#12414a" },
+    { color: "#6ee7b7", skin: "#d9a878", hair: "#3a2b1a", pants: "#1f5f3f" },
+    { color: "#b79bff", skin: "#c89060", hair: "#0f0f0f", pants: "#3b2a5f" },
+    { color: "#ff9bb0", skin: "#f2c9a0", hair: "#4a2c1a", pants: "#5f1e3a" },
+    { color: "#ffd98a", skin: "#e6b58a", hair: "#241608", pants: "#5f4a1e" },
+  ];
+
+  const FINISH_MARGIN = 0.946; // matches CSS finish line position (right: 5.4%)
+
   /* ---------- state ---------- */
   const S = {
-    phase: "menu",          // menu | countdown | racing | done
+    phase: "menu",          // menu | lobby | countdown | racing | done
+    mode: "solo",           // solo | multi
     length: "medium",
     text: "",
-    typedCount: 0,          // correct chars advanced (position in text)
+    typedCount: 0,
     correctChars: 0,
-    keystrokes: 0,          // total attempts (for accuracy)
+    keystrokes: 0,
     errors: 0,
-    startTime: 0,
+    wrongCount: 0,          // uncorrected wrong chars currently on screen
+    minWrong: Infinity,     // index of the earliest uncorrected wrong char
+    startPerf: 0,           // solo time base (performance.now)
+    raceStartAt: 0,         // multi time base (server ms)
+    liveAt: false,          // has the countdown finished (typing allowed)?
     lastFrame: 0,
     rafId: 0,
     finished: false,
-    you: null,              // { progress:0..1, finishTime, wpmLive }
-    bots: [],               // runtime bot state
-    finishOrder: [],
+    racers: [],             // unified list; each has .type: you | bot | remote
+    room: null,             // latest multiplayer room snapshot
   };
-
-  const FINISH_MARGIN = 0.946; // matches CSS finish line position (right: 5.4%)
 
   /* ---------- element refs ---------- */
   const $ = (s) => document.querySelector(s);
   const el = {
     screens: {
       menu: $("#screen-menu"),
+      lobby: $("#screen-lobby"),
       race: $("#screen-race"),
       results: $("#screen-results"),
     },
-    lengthSeg: $("#length-seg"),
-    btnStart: $("#btn-start"),
+    // menu
+    btnRaceNow: $("#btn-race-now"),
+    btnSolo: $("#btn-solo"),
+    btnFriends: $("#btn-friends"),
+    menuYou: $("#menu-you-name"),
+    // friends panel
+    friends: $("#friends-panel"),
+    btnCreatePrivate: $("#btn-create-private"),
+    joinCode: $("#join-code-input"),
+    btnJoinCode: $("#btn-join-code"),
+    btnFriendsClose: $("#btn-friends-close"),
+    friendsError: $("#friends-error"),
+    // lobby
+    lobbyTitle: $("#lobby-title"),
+    lobbyStatus: $("#lobby-status"),
+    lobbyPlayers: $("#lobby-players"),
+    lobbyCodeWrap: $("#lobby-code-wrap"),
+    lobbyCode: $("#lobby-code"),
+    btnCopyLink: $("#btn-copy-link"),
+    btnLobbyStart: $("#btn-lobby-start"),
+    btnLobbyLeave: $("#btn-lobby-leave"),
+    lobbyHint: $("#lobby-hint"),
+    // race
     lanes: $("#lanes"),
     passage: $("#passage"),
     input: $("#hidden-input"),
@@ -121,6 +152,7 @@
       wpm: $("#hud-wpm"), acc: $("#hud-acc"), pos: $("#hud-pos"),
       time: $("#hud-time"), progress: $("#hud-progress"),
     },
+    // results
     resultsPlace: $("#results-place"),
     resultsTitle: $("#results-title"),
     resultsBanner: $("#results-banner"),
@@ -131,14 +163,72 @@
   /* ---------- helpers ---------- */
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rand = (a, b) => a + Math.random() * (b - a);
-  const wpmToCps = (wpm) => (wpm * 5) / 60; // chars per second (5 chars = 1 word)
   const ordinal = (n) => ["1st", "2nd", "3rd", "4th", "5th"][n - 1] || n + "th";
+  const net = () => window.SprintNet;
+  const user = () => window.SPRINT_USER || { uid: "local", name: "You", isGuest: true, photoURL: null };
 
   function showScreen(name) {
     Object.values(el.screens).forEach((s) => s.classList.remove("is-active"));
     el.screens[name].classList.add("is-active");
   }
 
+  /* ---------- passage + bot builders (shared with the network layer) ---------- */
+  let passageBag = [];
+  function nextPassageIndex() {
+    if (passageBag.length === 0) {
+      passageBag = PASSAGES.map((_, i) => i);
+      for (let i = passageBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [passageBag[i], passageBag[j]] = [passageBag[j], passageBag[i]];
+      }
+    }
+    return passageBag.pop();
+  }
+  function makePassage() {
+    const lengths = Object.keys(LENGTH_SENTENCES);
+    const len = lengths[Math.floor(Math.random() * lengths.length)];
+    const n = LENGTH_SENTENCES[len];
+    const parts = [];
+    for (let i = 0; i < n; i++) parts.push(PASSAGES[nextPassageIndex()]);
+    return parts.join(" ");
+  }
+
+  // Deterministic bots: each carries a targetTime (seconds to finish) so every
+  // client renders identical motion and agrees on the outcome.
+  function makeBots(passage, count) {
+    const words = passage.length / 5;
+    const bots = [];
+    for (let i = 0; i < count; i++) {
+      const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
+      const wpm = t.baseWpm + rand(-3, 3);
+      const targetTime = (words / wpm) * 60;
+      bots.push({
+        id: "bot" + i,
+        name: t.name,
+        color: t.color,
+        sub: t.sub,
+        look: { ...t.look, color: t.color },
+        wpm: Math.round(wpm),
+        targetTime,
+        phase: rand(0, Math.PI * 2),
+      });
+    }
+    return bots;
+  }
+
+  function botProgress(bot, elapsed) {
+    if (elapsed <= 0) return 0;
+    if (elapsed >= bot.targetTime) return FINISH_MARGIN;
+    const t = elapsed / bot.targetTime;
+    const wiggle = Math.sin(elapsed * 2.1 + bot.phase) * 0.010;
+    return clamp(t + wiggle, 0, 1) * FINISH_MARGIN;
+  }
+  function botWpm(bot, elapsed) {
+    if (elapsed <= 0 || elapsed >= bot.targetTime) return bot.wpm;
+    return Math.max(1, Math.round(bot.wpm + Math.sin(elapsed * 3 + bot.phase) * 4));
+  }
+
+  /* ---------- runner + lane markup ---------- */
   function buildRunnerMarkup(look) {
     return `
       <div class="runner" style="--c:${look.color};--skin:${look.skin};--hair:${look.hair};--pants:${look.pants}">
@@ -151,33 +241,29 @@
       </div>`;
   }
 
-  /* ---------- build the track lanes ---------- */
   function buildLanes() {
-    // roster order top-to-bottom: YOU first, then bots
-    const roster = [
-      { id: "you", name: "YOU", color: YOU_LOOK.color, sub: "you", look: { ...YOU_LOOK } },
-      ...BOTS.map((b) => ({ id: b.id, name: b.name, color: b.color, sub: b.baseWpm >= 90 ? "hard" : b.baseWpm >= 70 ? "medium" : "easy", look: { ...b.look, color: b.color } })),
-    ];
-
-    el.lanes.innerHTML = roster
-      .map(
-        (r) => `
+    el.lanes.innerHTML = S.racers
+      .map((r) => `
       <div class="lane" data-id="${r.id}">
         <span class="lane__tag" style="color:${r.color}">
           <span class="racer-chip__dot" style="background:${r.color};width:9px;height:9px"></span>
-          ${r.name} <small class="lane__wpm" data-wpm="${r.id}">0 wpm</small>
+          ${escapeHtml(r.label)} <small class="lane__wpm" data-wpm="${r.id}">0 wpm</small>
         </span>
-        <div class="runner-unit ${r.id === "you" ? "runner-unit--you" : ""}" data-unit="${r.id}" style="left:2.5%">
+        <div class="runner-unit ${r.type === "you" ? "runner-unit--you" : ""}" data-unit="${r.id}" style="left:2.5%">
           <span class="streak" style="--c:${r.color}"></span>
           <span class="dust"></span><span class="dust"></span><span class="dust"></span>
           ${buildRunnerMarkup(r.look)}
         </div>
-      </div>`
-      )
+      </div>`)
       .join("");
   }
 
-  /* ---------- render passage into spans ---------- */
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  /* ---------- passage rendering (chars + gliding caret) ---------- */
   function renderPassage() {
     const frag = document.createDocumentFragment();
     for (let i = 0; i < S.text.length; i++) {
@@ -188,10 +274,8 @@
       span.dataset.i = i;
       frag.appendChild(span);
     }
-    // single gliding caret element (smooth, instead of a per-character pseudo)
     const caret = document.createElement("span");
     caret.className = "caret";
-    // inner wrapper is what we translate vertically to keep the current line visible
     const inner = document.createElement("div");
     inner.className = "passage__inner";
     inner.appendChild(caret);
@@ -205,21 +289,17 @@
     markCurrent();
   }
 
-  // glide the caret to the given character (or park it after the last one)
   function positionCaret(target) {
     if (!S.caret) return;
     if (target) {
       S.caret.style.display = "block";
       S.caret.style.transform = "translate(" + target.offsetLeft + "px," + target.offsetTop + "px)";
     } else if (S.chars.length) {
-      // finished: sit just past the final character
       const last = S.chars[S.chars.length - 1];
       S.caret.style.transform = "translate(" + (last.offsetLeft + last.offsetWidth) + "px," + last.offsetTop + "px)";
     }
   }
 
-  // Only touches the two chars that change (old caret + new caret) — no full loop,
-  // so the caret stays snappy even on long passages.
   function markCurrent() {
     if (S.currentEl) S.currentEl.classList.remove("current");
     const next = S.typedCount < S.chars.length ? S.chars[S.typedCount] : null;
@@ -229,145 +309,197 @@
     updateScroll(next);
   }
 
-  // Scroll the passage so the active line is always on screen. Keeps one line of
-  // context above the caret; long passages that overflow now stay fully reachable.
   function updateScroll(activeEl) {
     if (!el.passageInner) return;
     const target = activeEl || S.chars[S.chars.length - 1];
     if (!target) return;
     const lineBox = parseFloat(getComputedStyle(el.passage).lineHeight) || target.offsetHeight || 30;
-    // snap offsetTop to whole lines, then keep one line of lead above the caret
     const lineIndex = Math.round(target.offsetTop / lineBox);
     const offset = Math.max(0, (lineIndex - 1) * lineBox);
     el.passageInner.style.transform = "translateY(" + -offset + "px)";
   }
 
-  /* ---------- game setup ---------- */
-  // shuffle bag: draw passages without repeats until the whole pool is used,
-  // then reshuffle — so it always feels like a brand-new text.
-  let passageBag = [];
-  function nextPassageIndex() {
-    if (passageBag.length === 0) {
-      passageBag = PASSAGES.map((_, i) => i);
-      for (let i = passageBag.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [passageBag[i], passageBag[j]] = [passageBag[j], passageBag[i]];
-      }
-    }
-    return passageBag.pop();
+  /* ---------- assemble the racer list ---------- */
+  function youRacer() {
+    return {
+      id: "you", type: "you", uid: user().uid,
+      label: (user().name || "You") + " (you)",
+      color: YOU_LOOK.color, look: { ...YOU_LOOK }, sub: "you",
+      progress: 0, wpm: 0, finishTime: null,
+    };
   }
 
-  function pickText() {
-    const n = LENGTH_SENTENCES[S.length];
-    const parts = [];
-    for (let i = 0; i < n; i++) parts.push(PASSAGES[nextPassageIndex()]);
-    return parts.join(" ");
+  function buildSoloRacers() {
+    S.text = makePassage();
+    const bots = makeBots(S.text, 4);
+    S.racers = [
+      youRacer(),
+      ...bots.map((b) => ({ ...b, type: "bot", progress: 0, finishTime: null })),
+    ];
   }
 
-  function resetState() {
-    S.text = pickText();
-    S.typedCount = 0;
-    S.correctChars = 0;
-    S.keystrokes = 0;
-    S.errors = 0;
-    S.finished = false;
-    S.finishOrder = [];
-    S.you = { progress: 0, finishTime: null, wpmLive: 0 };
-    S.bots = BOTS.map((b) => ({
-      ...b,
-      progress: 0,
-      wpmNow: b.baseWpm,
-      finishTime: null,
-      bursting: false,
-      burstT: 0,
+  function buildMultiRacers(room) {
+    S.text = room.passage;
+    const others = room.players.filter((p) => p.uid !== room.me);
+    const remote = others.map((p, i) => {
+      const look = PLAYER_LOOKS[i % PLAYER_LOOKS.length];
+      return {
+        id: "p_" + p.uid, type: "remote", uid: p.uid,
+        label: p.name + (p.isGuest ? "" : " ✓"),
+        color: look.color, look: { ...look, color: look.color }, sub: "player",
+        progress: p.progress || 0, wpm: p.wpm || 0,
+        finished: !!p.finished, finishTime: p.finishTime,
+      };
+    });
+    const bots = (room.bots || []).map((b) => ({
+      ...b, type: "bot", progress: 0, finishTime: null,
     }));
+    S.racers = [youRacer(), ...remote, ...bots];
   }
 
-  /* ---------- countdown then race ---------- */
-  function startCountdown() {
-    if (S.phase === "countdown") return; // guard against double-trigger (Enter + click)
-    S.phase = "countdown";
-    resetState();
-    buildLanes();
-    renderPassage();
-    showScreen("race"); // also closes the results dialog if it was open
-    el.input.value = "";
-    el.typeStatus.textContent = "Get ready…";
-    el.countdown.classList.add("is-active");
+  // refresh remote racers' live data from a room snapshot (during the race)
+  function syncRemotes(room) {
+    room.players.forEach((p) => {
+      if (p.uid === room.me) return;
+      const r = S.racers.find((x) => x.uid === p.uid);
+      if (r) {
+        r.progress = p.progress || 0;
+        r.wpm = p.wpm || 0;
+        r.finished = !!p.finished;
+        r.finishTime = p.finishTime;
+      }
+    });
+  }
 
+  /* ---------- time base ---------- */
+  function elapsedSec() {
+    if (S.mode === "multi") return (net().serverNow() - S.raceStartAt) / 1000;
+    return (performance.now() - S.startPerf) / 1000;
+  }
+
+  /* ---------- solo start ---------- */
+  function startSolo() {
+    if (S.phase === "countdown" || S.phase === "racing") return;
+    S.mode = "solo";
+    resetRaceState();
+    buildSoloRacers();
+    enterRaceScreen();
+    // classic local 3-2-1
+    el.countdown.classList.add("is-active");
     const steps = ["3", "2", "1", "GO!"];
     let i = 0;
     const tick = () => {
       const n = el.countdownNum;
       n.textContent = steps[i];
       n.classList.remove("pop", "go");
-      void n.offsetWidth; // reflow to restart animation
+      void n.offsetWidth;
       n.classList.add(i === steps.length - 1 ? "go" : "pop");
       i++;
-      if (i < steps.length) {
-        setTimeout(tick, 900);
-      } else {
-        setTimeout(beginRace, 850);
-      }
+      if (i < steps.length) setTimeout(tick, 850);
+      else setTimeout(beginSolo, 800);
     };
+    S.phase = "countdown";
     tick();
   }
 
-  function beginRace() {
+  function beginSolo() {
     el.countdown.classList.remove("is-active");
     S.phase = "racing";
-    S.startTime = performance.now();
-    S.lastFrame = S.startTime;
+    S.liveAt = true;
+    S.startPerf = performance.now();
+    S.lastFrame = S.startPerf;
     el.typeStatus.textContent = "GO! Type as fast as you can.";
     el.input.focus();
     document.querySelectorAll(".runner-unit").forEach((u) => u.classList.add("is-running"));
     S.rafId = requestAnimationFrame(loop);
   }
 
-  /* ---------- the main loop (bots + HUD) ---------- */
+  /* ---------- multiplayer start ---------- */
+  function enterMultiRace(room) {
+    S.mode = "multi";
+    resetRaceState();
+    S.room = room;
+    S.raceStartAt = room.raceStartAt;
+    buildMultiRacers(room);
+    enterRaceScreen();
+    S.phase = "racing";
+    S.liveAt = false;
+    S.lastFrame = performance.now();
+    document.querySelectorAll(".runner-unit").forEach((u) => u.classList.add("is-running"));
+    S.rafId = requestAnimationFrame(loop);
+  }
+
+  function resetRaceState() {
+    cancelAnimationFrame(S.rafId);
+    S.typedCount = 0;
+    S.correctChars = 0;
+    S.keystrokes = 0;
+    S.errors = 0;
+    S.wrongCount = 0;
+    S.minWrong = Infinity;
+    S.finished = false;
+    S.liveAt = false;
+  }
+
+  function enterRaceScreen() {
+    buildLanes();
+    renderPassage();
+    showScreen("race");
+    el.input.value = "";
+    el.typeStatus.textContent = "Get ready…";
+  }
+
+  /* ---------- the main loop ---------- */
   function loop(now) {
     if (S.phase !== "racing") return;
-    const dt = Math.min(0.05, (now - S.lastFrame) / 1000); // seconds, capped
-    S.lastFrame = now;
     const total = S.text.length;
+    const elapsed = elapsedSec();
 
-    // advance each bot
-    S.bots.forEach((b) => {
-      if (b.finishTime !== null) return;
-
-      // occasional burst (Titan): sustained surge above 100 wpm
-      if (b.burstChance > 0) {
-        if (b.bursting) {
-          b.burstT -= dt;
-          if (b.burstT <= 0) b.bursting = false;
-        } else if (Math.random() < b.burstChance * dt) {
-          b.bursting = true;
-          b.burstT = rand(1.2, 2.6);
+    // multiplayer synced countdown
+    if (S.mode === "multi" && !S.liveAt) {
+      const remaining = -elapsed; // seconds until go
+      if (remaining > 0) {
+        el.countdown.classList.add("is-active");
+        const num = Math.min(3, Math.ceil(remaining));
+        if (el.countdownNum.textContent !== String(num)) {
+          el.countdownNum.textContent = num;
+          el.countdownNum.classList.remove("pop"); void el.countdownNum.offsetWidth;
+          el.countdownNum.classList.add("pop");
         }
+      } else {
+        el.countdownNum.textContent = "GO!";
+        el.countdownNum.classList.add("go");
+        setTimeout(() => el.countdown.classList.remove("is-active"), 500);
+        S.liveAt = true;
+        el.typeStatus.textContent = "GO! Type as fast as you can.";
+        el.input.focus();
       }
+    }
 
-      const target = b.bursting ? rand(b.burstWpm, b.burstWpm + 6) : b.baseWpm + rand(-b.jitter, b.jitter);
-      // smooth toward target so the number doesn't flicker
-      b.wpmNow += (target - b.wpmNow) * clamp(dt * 3, 0, 1);
-      const cps = wpmToCps(Math.max(b.id === "easy" ? 50 : 0, b.wpmNow));
-      b.progress += (cps * dt) / total;
-
-      if (b.progress >= FINISH_MARGIN) {
-        b.progress = FINISH_MARGIN;
-        b.finishTime = (now - S.startTime) / 1000;
-        S.finishOrder.push(b.id);
-      }
+    // advance bots (deterministic)
+    S.racers.forEach((r) => {
+      if (r.type !== "bot") return;
+      r.progress = botProgress(r, elapsed);
+      r.wpmNow = botWpm(r, elapsed);
+      if (r.progress >= FINISH_MARGIN && r.finishTime == null) r.finishTime = r.targetTime;
     });
 
-    // you: live wpm from correct chars
-    const elapsedMin = (now - S.startTime) / 60000;
-    S.you.wpmLive = elapsedMin > 0 ? (S.correctChars / 5) / elapsedMin : 0;
-    S.you.progress = clamp((S.typedCount / total) * FINISH_MARGIN, 0, FINISH_MARGIN);
+    // you
+    const you = S.racers.find((r) => r.type === "you");
+    const runElapsed = S.liveAt ? Math.max(0.0001, elapsed) : 0.0001;
+    you.wpm = (S.correctChars / 5) / (runElapsed / 60);
+    // Runner advances by the correct streak from the start — an uncorrected
+    // mistake stops it at that point until the player backspaces and fixes it.
+    const progressIndex = S.wrongCount > 0 ? S.minWrong : S.typedCount;
+    you.progress = clamp((progressIndex / total) * FINISH_MARGIN, 0, FINISH_MARGIN);
 
-    renderRace(now);
+    // push my live state to the room
+    if (S.mode === "multi" && S.liveAt && !S.finished) {
+      const acc = S.keystrokes > 0 ? (S.correctChars / S.keystrokes) * 100 : 100;
+      net().sendProgress({ progress: you.progress, wpm: you.wpm, acc });
+    }
 
-    // NOTE: the race ends the instant YOU finish (see finishYou) — no waiting
-    // for the bots. The loop just keeps the bots moving until then.
+    renderRace(elapsed);
     S.rafId = requestAnimationFrame(loop);
   }
 
@@ -377,24 +509,20 @@
     return "";
   }
 
-  function renderRace(now) {
-    // position runners
-    positionRunner("you", S.you.progress, S.you.wpmLive);
-    S.bots.forEach((b) => positionRunner(b.id, b.progress, b.wpmNow));
+  function renderRace(elapsed) {
+    S.racers.forEach((r) => {
+      const wpm = r.type === "you" ? r.wpm : (r.type === "bot" ? r.wpmNow : r.wpm);
+      positionRunner(r.id, r.progress, wpm || 0);
+    });
 
-    // HUD
-    const elapsed = (now - S.startTime) / 1000;
-    el.hud.wpm.textContent = Math.round(S.you.wpmLive);
-    el.hud.progress.innerHTML = Math.round((S.you.progress / FINISH_MARGIN) * 100) + "<small>%</small>";
+    const you = S.racers.find((r) => r.type === "you");
     const acc = S.keystrokes > 0 ? Math.round((S.correctChars / S.keystrokes) * 100) : 100;
+    el.hud.wpm.textContent = Math.round(you.wpm || 0);
+    el.hud.progress.innerHTML = Math.round((you.progress / FINISH_MARGIN) * 100) + "<small>%</small>";
     el.hud.acc.innerHTML = acc + "<small>%</small>";
-    el.hud.time.innerHTML = elapsed.toFixed(1) + "<small>s</small>";
+    el.hud.time.innerHTML = Math.max(0, elapsed).toFixed(1) + "<small>s</small>";
 
-    // live position (1st..5th) by progress
-    const ranked = [
-      { id: "you", p: S.you.progress },
-      ...S.bots.map((b) => ({ id: b.id, p: b.progress })),
-    ].sort((a, z) => z.p - a.p);
+    const ranked = S.racers.map((r) => ({ id: r.id, p: r.progress })).sort((a, z) => z.p - a.p);
     const youRank = ranked.findIndex((r) => r.id === "you") + 1;
     el.hud.pos.innerHTML = youRank + "<small>" + ordinal(youRank).slice(-2) + "</small>";
   }
@@ -402,7 +530,6 @@
   function positionRunner(id, progress, wpm) {
     const unit = el.lanes.querySelector(`[data-unit="${id}"]`);
     if (!unit) return;
-    // map progress (0..FINISH_MARGIN) to the track: start 2.5% -> finish line ~92.5%
     const leftPct = 2.5 + (progress / FINISH_MARGIN) * 90;
     unit.style.left = leftPct + "%";
     const cls = speedClass(wpm);
@@ -413,25 +540,35 @@
   }
 
   /* ---------- typing input ---------- */
-  function onInput(e) {
-    if (S.phase !== "racing" || S.finished) { el.input.value = ""; return; }
+  function onInput() {
+    if (S.phase !== "racing" || !S.liveAt || S.finished) { el.input.value = ""; return; }
     const val = el.input.value;
     el.input.value = "";
     for (const ch of val) handleChar(ch);
   }
 
   function onKeydown(e) {
-    if (e.key === "Escape") { quitToMenu(); return; }
-    if (S.phase !== "racing" || S.finished) return;
+    if (e.key === "Escape") {
+      if (S.phase === "racing" || S.phase === "countdown") quitRace();
+      return;
+    }
+    if (S.phase !== "racing" || !S.liveAt || S.finished) return;
     if (e.key === "Backspace") {
       e.preventDefault();
       if (S.typedCount > 0) {
         S.typedCount--;
         const span = S.chars[S.typedCount];
         if (span.classList.contains("correct")) S.correctChars--;
+        if (span.classList.contains("wrong")) {
+          S.wrongCount = Math.max(0, S.wrongCount - 1);
+          if (S.wrongCount === 0) S.minWrong = Infinity;
+        }
         span.classList.remove("correct", "wrong");
+        if (S.wrongCount === 0) {
+          el.typePanel.classList.remove("err");
+          el.typeStatus.textContent = "Good — keep going.";
+        }
         markCurrent();
-        el.typePanel.classList.remove("err");
       }
     }
   }
@@ -439,82 +576,90 @@
   function handleChar(ch) {
     const chars = S.chars;
     if (S.typedCount >= chars.length) return;
-    const expected = S.text[S.typedCount];
-    const span = chars[S.typedCount];
+    const p = S.typedCount;
+    const expected = S.text[p];
+    const span = chars[p];
     S.keystrokes++;
-
     if (ch === expected) {
       span.classList.add("correct");
       span.classList.remove("wrong");
       S.correctChars++;
       S.typedCount++;
-      el.typePanel.classList.remove("err");
-      el.typeStatus.textContent = "Nice — keep the rhythm going.";
     } else {
       span.classList.add("wrong");
+      span.classList.remove("correct");
       S.errors++;
       S.typedCount++;
-      el.typePanel.classList.add("err");
-      el.typeStatus.textContent = "Typo! Backspace to fix, or push on.";
+      S.wrongCount++;
+      if (p < S.minWrong) S.minWrong = p; // remember the earliest mistake
     }
+    // Guide the player: while a mistake is uncorrected, the runner is frozen.
+    el.typeStatus.textContent = S.wrongCount > 0
+      ? "Wrong letter — backspace and fix it to move forward."
+      : "Nice — keep the rhythm going.";
+    el.typePanel.classList.toggle("err", S.wrongCount > 0);
     markCurrent();
-
-    if (S.typedCount >= chars.length) finishYou();
+    // Finish only once the whole passage is typed with no mistakes left.
+    if (S.wrongCount === 0 && S.typedCount >= chars.length) finishYou();
   }
 
   function finishYou() {
     if (S.finished) return;
     S.finished = true;
-    S.you.progress = FINISH_MARGIN;
-    S.you.finishTime = (performance.now() - S.startTime) / 1000;
+    const you = S.racers.find((r) => r.type === "you");
+    you.progress = FINISH_MARGIN;
+    you.finishTime = elapsedSec();
     const unit = el.lanes.querySelector('[data-unit="you"]');
     if (unit) { unit.classList.add("finished"); unit.classList.remove("is-running"); }
     el.typeStatus.textContent = "You crossed the line!";
-    endRace(); // show the dialog immediately — no waiting for the bots
+
+    if (S.mode === "multi") {
+      const acc = S.keystrokes > 0 ? (S.correctChars / S.keystrokes) * 100 : 100;
+      net().sendFinished({ progress: FINISH_MARGIN, wpm: you.wpm, acc, time: you.finishTime });
+    }
+    endRace();
   }
 
-  /* ---------- end + results ---------- */
+  /* ---------- results ---------- */
   function endRace() {
     if (S.phase === "done") return;
     S.phase = "done";
     cancelAnimationFrame(S.rafId);
     document.querySelectorAll(".runner-unit").forEach((u) => u.classList.remove("is-running"));
 
-    const yourTime = S.you.finishTime || (performance.now() - S.startTime) / 1000;
+    const you = S.racers.find((r) => r.type === "you");
+    const yourTime = you.finishTime || elapsedSec();
     const yourWpm = yourTime > 0 ? Math.round((S.correctChars / 5) / (yourTime / 60)) : 0;
     const acc = S.keystrokes > 0 ? Math.round((S.correctChars / S.keystrokes) * 100) : 100;
 
-    // Your place = however many bots have ALREADY crossed the line + 1.
-    // Any bot still on the track is behind you, so this is your final placement.
-    const botsAhead = S.bots.filter((b) => b.finishTime !== null).length;
-    const youPlace = botsAhead + 1;
+    // how many racers have already crossed the line before you?
+    const ahead = S.racers.filter((r) => {
+      if (r.type === "you") return false;
+      const fin = r.type === "bot" ? r.targetTime : (r.finished ? r.finishTime : Infinity);
+      return fin != null && fin <= yourTime;
+    }).length;
+    const youPlace = ahead + 1;
     const won = youPlace === 1;
+    const field = S.racers.length;
 
     el.resultsPlace.textContent = ordinal(youPlace);
     el.resultsPlace.classList.toggle("win", won);
     el.resultsTitle.classList.remove("win", "lose");
     if (won) {
       el.resultsBanner.textContent = "★ VICTORY ★";
-      el.resultsTitle.textContent = yourWpm >= 95 ? "You won the race!" : "Photo finish — you took it!";
+      el.resultsTitle.textContent = "You won the race!";
       el.resultsTitle.classList.add("win");
       confetti();
     } else {
       el.resultsBanner.textContent = "RACE COMPLETE";
-      const msgs = {
-        2: "So close — 2nd place!",
-        3: "Solid run — 3rd place.",
-        4: "4th this time. Push for 95+ WPM!",
-        5: "The bots got you. Aim for 95+ WPM to win.",
-      };
-      el.resultsTitle.textContent = msgs[youPlace] || "Finished!";
+      el.resultsTitle.textContent = "You placed " + ordinal(youPlace) + " of " + field + ".";
       el.resultsTitle.classList.add("lose");
     }
 
     el.resWpm.textContent = yourWpm;
     el.resAcc.textContent = acc + "%";
     el.resTime.textContent = yourTime.toFixed(1) + "s";
-
-    // open as a dialog on top of the finished race (race screen stays behind)
+    el.btnAgain.textContent = S.mode === "multi" ? "Back to menu" : "Race again";
     el.screens.results.classList.add("is-active");
   }
 
@@ -532,46 +677,231 @@
     }
   }
 
-  function quitToMenu() {
+  /* ---------- navigation ---------- */
+  function quitRace() {
+    cancelAnimationFrame(S.rafId);
+    S.finished = true;
+    if (S.mode === "multi") net().leave();
+    goMenu();
+  }
+
+  function goMenu() {
     cancelAnimationFrame(S.rafId);
     S.phase = "menu";
-    S.finished = true;
+    S.mode = "solo";
+    S.room = null;
+    el.countdown.classList.remove("is-active");
+    el.screens.results.classList.remove("is-active");
+    if (el.menuYou) el.menuYou.textContent = user().name;
     showScreen("menu");
+  }
+
+  async function leaveAndMenu() {
+    try { await net().leave(); } catch {}
+    goMenu();
+  }
+
+  /* =====================  MULTIPLAYER LOBBY  ===================== */
+  function onRoom(room) {
+    if (!room) {
+      // room vanished (host left / expired)
+      if (S.phase !== "done") { goMenu(); toast("The room closed."); }
+      return;
+    }
+    S.room = room;
+
+    if (room.status === "waiting") {
+      renderLobby(room);
+      return;
+    }
+    if (room.status === "racing") {
+      if (S.phase === "racing" || S.phase === "done") {
+        syncRemotes(room);        // live update during the race
+      } else {
+        enterMultiRace(room);     // first transition into the race
+      }
+      return;
+    }
+  }
+
+  function renderLobby(room) {
+    S.phase = "lobby";
+    showScreen("lobby");
+    el.lobbyTitle.textContent = room.isPrivate ? "Private race" : "Finding racers";
+
+    // players list
+    el.lobbyPlayers.innerHTML = room.players.map((p, i) => {
+      const look = p.uid === room.me ? YOU_LOOK : PLAYER_LOOKS[(room.players.filter((x, j) => x.uid !== room.me && j < i).length) % PLAYER_LOOKS.length];
+      const you = p.uid === room.me ? ' <span class="lobby-you">you</span>' : "";
+      const host = p.isHost ? ' <span class="lobby-host">host</span>' : "";
+      return `<li class="lobby-player">
+        <span class="lobby-dot" style="background:${look.color}"></span>
+        <span class="lobby-pname">${escapeHtml(p.name)}${you}${host}</span>
+      </li>`;
+    }).join("");
+
+    // status line
+    if (room.isPrivate) {
+      el.lobbyCodeWrap.hidden = false;
+      el.lobbyCode.textContent = room.code || "—";
+      const canStart = room.isHost;
+      el.btnLobbyStart.hidden = !canStart;
+      el.btnLobbyStart.disabled = room.players.length < 1;
+      el.lobbyStatus.textContent = room.isHost
+        ? "Share the code, then start when your friends are in."
+        : "Waiting for the host to start…";
+      el.lobbyHint.textContent = room.players.length < 2
+        ? "Tip: if you start solo, bots will fill the lanes."
+        : "";
+    } else {
+      el.lobbyCodeWrap.hidden = true;
+      el.btnLobbyStart.hidden = true;
+      const secs = Math.max(0, Math.ceil((room.startAt - room.serverNow) / 1000));
+      el.lobbyStatus.textContent =
+        `${room.players.length} racer${room.players.length > 1 ? "s" : ""} ready · starting in ${secs}s`;
+      el.lobbyHint.textContent = "Empty lanes will be filled with bots.";
+    }
+  }
+
+  function toast(msg) {
+    el.typeStatus && (el.typeStatus.textContent = msg);
+    console.log("[SPRINT]", msg);
+  }
+
+  /* ---------- friends panel ---------- */
+  function openFriends() {
+    el.friendsError.hidden = true;
+    el.friends.classList.add("is-open");
+    el.joinCode.value = "";
+  }
+  function closeFriends() { el.friends.classList.remove("is-open"); }
+  function friendsError(msg) { el.friendsError.textContent = msg; el.friendsError.hidden = false; }
+
+  const roomCbs = { onRoom, onError: (e) => toast(e.message || "Network error") };
+
+  async function doRaceNow() {
+    if (!net()) return toast("Still connecting…");
+    disableMenu(true);
+    try {
+      await net().quickMatch(roomCbs);
+    } catch (e) {
+      console.error(e);
+      toast("Matchmaking failed. Try again.");
+      goMenu();
+    } finally {
+      disableMenu(false);
+    }
+  }
+
+  async function doCreatePrivate() {
+    if (!net()) return friendsError("Still connecting…");
+    try {
+      const { roomId } = await net().createPrivate(roomCbs);
+      S.inviteRoomId = roomId;
+      closeFriends();
+    } catch (e) {
+      console.error(e);
+      friendsError("Couldn't create the room.");
+    }
+  }
+
+  async function doJoinCode() {
+    const code = (el.joinCode.value || "").trim();
+    if (code.length < 4) return friendsError("Enter the 5-letter code.");
+    try {
+      await net().joinByCode(code, roomCbs);
+      closeFriends();
+    } catch (e) {
+      console.error(e);
+      friendsError(e.message || "Couldn't join that room.");
+    }
+  }
+
+  async function doJoinRoomId(roomId) {
+    try {
+      await net().joinRoom(roomId, roomCbs);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || "Couldn't join that room.");
+      goMenu();
+    }
+  }
+
+  function copyInviteLink() {
+    const id = S.inviteRoomId || net().roomId;
+    if (!id) return;
+    const url = location.origin + location.pathname + "?room=" + id;
+    navigator.clipboard?.writeText(url).then(
+      () => { el.btnCopyLink.textContent = "Copied!"; setTimeout(() => (el.btnCopyLink.textContent = "Copy invite link"), 1500); },
+      () => toast(url)
+    );
+  }
+
+  function disableMenu(v) {
+    [el.btnRaceNow, el.btnSolo, el.btnFriends].forEach((b) => b && (b.disabled = v));
+    if (el.btnRaceNow) el.btnRaceNow.querySelector("span") && (el.btnRaceNow.querySelector("span").textContent = v ? "Finding a race…" : "Race Now");
   }
 
   /* ---------- wiring ---------- */
   function init() {
-    // length selector
-    el.lengthSeg.addEventListener("click", (e) => {
-      const btn = e.target.closest(".seg__btn");
-      if (!btn) return;
-      el.lengthSeg.querySelectorAll(".seg__btn").forEach((b) => b.classList.remove("is-selected"));
-      btn.classList.add("is-selected");
-      S.length = btn.dataset.len;
-    });
+    // menu actions
+    el.btnRaceNow?.addEventListener("click", doRaceNow);
+    el.btnSolo?.addEventListener("click", startSolo);
+    el.btnFriends?.addEventListener("click", openFriends);
 
-    el.btnStart.addEventListener("click", startCountdown);
-    el.btnAgain.addEventListener("click", startCountdown);
-    el.btnMenu.addEventListener("click", () => { S.phase = "menu"; showScreen("menu"); });
+    // friends panel
+    el.btnCreatePrivate?.addEventListener("click", doCreatePrivate);
+    el.btnJoinCode?.addEventListener("click", doJoinCode);
+    el.btnFriendsClose?.addEventListener("click", closeFriends);
+    el.joinCode?.addEventListener("keydown", (e) => { if (e.key === "Enter") doJoinCode(); });
+
+    // lobby
+    el.btnLobbyStart?.addEventListener("click", () => net().hostStart());
+    el.btnLobbyLeave?.addEventListener("click", leaveAndMenu);
+    el.btnCopyLink?.addEventListener("click", copyInviteLink);
+
+    // results
+    el.btnAgain?.addEventListener("click", () => (S.mode === "multi" ? leaveAndMenu() : startSolo()));
+    el.btnMenu?.addEventListener("click", leaveAndMenu);
 
     // typing
     el.input.addEventListener("input", onInput);
     document.addEventListener("keydown", onKeydown);
-
-    // keep focus on the hidden input while racing
     el.typePanel.addEventListener("click", () => el.input.focus());
     el.input.addEventListener("focus", () => el.typePanel.classList.add("is-focused"));
     el.input.addEventListener("blur", () => el.typePanel.classList.remove("is-focused"));
 
-    // Enter starts a race from the menu AND restarts from the results dialog
+    // Enter shortcut: quick race from the menu, continue from results
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (S.phase === "menu" || S.phase === "done")) {
+      if (e.key !== "Enter") return;
+      if (!window.SPRINT_USER) return; // still on the sign-in screen — let the auth form handle Enter
+      if (S.phase === "menu" && !el.friends.classList.contains("is-open")) {
         e.preventDefault();
-        startCountdown();
+        doRaceNow();
+      } else if (S.phase === "done") {
+        e.preventDefault();
+        S.mode === "multi" ? leaveAndMenu() : startSolo();
       }
     });
 
-    showScreen("menu");
+    // give the network layer our passage + bot generators
+    const wireNet = () => net()?.configure({ makePassage, makeBots });
+    if (net()) wireNet(); else document.addEventListener("sprint:net-ready", wireNet, { once: true });
+
+    // wait for auth, then reveal the menu (+ handle ?room= invite links)
+    const start = () => {
+      if (el.menuYou) el.menuYou.textContent = user().name;
+      showScreen("menu");
+      const params = new URLSearchParams(location.search);
+      const room = params.get("room");
+      if (room) {
+        history.replaceState(null, "", location.pathname);
+        const go = () => doJoinRoomId(room);
+        net() ? go() : document.addEventListener("sprint:net-ready", go, { once: true });
+      }
+    };
+    if (window.SPRINT_USER) start();
+    else document.addEventListener("sprint:auth", start, { once: true });
   }
 
   document.addEventListener("DOMContentLoaded", init);

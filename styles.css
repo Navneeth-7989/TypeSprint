@@ -538,7 +538,9 @@ kbd {
 
 /* ============ MOBILE GATE ============ */
 .mobile-gate { display: none; }
-@media (max-width: 820px), (pointer: coarse) {
+/* Only block true touch devices (phones/tablets) — NOT narrow desktop windows
+   or split-screen, which still have a real keyboard, a fine pointer and hover. */
+@media (pointer: coarse) and (hover: none) {
   .app { display: none; }
   .footer-credit { display: none; }
   .mobile-gate {
@@ -556,6 +558,153 @@ kbd {
   position: fixed; bottom: 10px; left: 0; right: 0; z-index: 1;
   text-align: center; font-size: 11px; letter-spacing: 2px; color: rgba(147,160,200,0.35);
   text-transform: uppercase; pointer-events: none;
+}
+
+/* The HTML `hidden` attribute must always win, even over flex/grid displays.
+   (A bare `display:flex` rule otherwise overrides the browser's [hidden].) */
+[hidden] { display: none !important; }
+
+/* =========================================================
+   Auth gate (sign in with Google / play as guest)
+   ========================================================= */
+.auth-gate {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: linear-gradient(180deg, #0a1230, #070a16);
+  transition: opacity 0.35s var(--ease);
+}
+.auth-gate.is-hidden { opacity: 0; pointer-events: none; }
+.auth-card {
+  width: min(460px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); backdrop-filter: blur(16px);
+  padding: clamp(28px, 5vh, 44px) clamp(24px, 4vw, 40px);
+  animation: rise 0.5s var(--ease) both;
+}
+.auth-card__title {
+  font-size: clamp(46px, 8vw, 68px); font-weight: 800; letter-spacing: -2px;
+  margin: 10px 0 6px; background: linear-gradient(120deg, var(--you), var(--you-2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.auth-card__subtitle { color: var(--muted); line-height: 1.6; font-size: 15px; margin-bottom: 26px; }
+.auth-card__actions { display: flex; flex-direction: column; gap: 12px; }
+.auth-loading { display: flex; justify-content: center; padding: 20px 0; }
+.auth-spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn--google {
+  background: #fff; color: #1f2430; border: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  font-weight: 700;
+}
+.btn--google:hover { transform: translateY(-2px); box-shadow: 0 18px 44px rgba(0,0,0,0.4); }
+.btn--block { width: 100%; }
+
+.guest-form { display: flex; flex-direction: column; gap: 12px; }
+.guest-form__label { font-size: 13px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
+.guest-form__row { display: flex; gap: 10px; }
+.guest-form__row .btn { flex: 1; }
+.guest-input {
+  width: 100%; padding: 15px 18px; font-size: 17px; font-family: inherit;
+  color: var(--ink); background: rgba(255,255,255,0.05);
+  border: 1px solid var(--line); border-radius: 12px; text-align: center;
+}
+.guest-input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.08); }
+.auth-error { color: var(--bad); font-size: 13px; margin-top: 14px; line-height: 1.5; }
+
+/* =========================================================
+   Signed-in chip
+   ========================================================= */
+.user-chip {
+  position: fixed; top: 16px; right: 18px; z-index: 30;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 8px 6px 12px; backdrop-filter: blur(10px);
+}
+.user-chip__avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.user-chip__name { font-size: 13px; font-weight: 600; color: var(--ink); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-chip__signout {
+  border: none; background: rgba(255,255,255,0.06); color: var(--muted);
+  font-size: 12px; font-family: inherit; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.user-chip__signout:hover { background: rgba(255,255,255,0.12); color: var(--ink); }
+
+/* =========================================================
+   Menu actions
+   ========================================================= */
+.menu__actions { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 6px; }
+.menu__actions-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* =========================================================
+   Friends panel
+   ========================================================= */
+.friends-panel {
+  position: fixed; inset: 0; z-index: 50;
+  display: none; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(5, 8, 20, 0.72); backdrop-filter: blur(6px);
+}
+.friends-panel.is-open { display: flex; }
+.friends-card {
+  position: relative; width: min(420px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); padding: 34px 30px; animation: rise 0.35s var(--ease) both;
+}
+.friends-card__close {
+  position: absolute; top: 14px; right: 16px; border: none; background: transparent;
+  color: var(--muted); font-size: 26px; line-height: 1; cursor: pointer;
+}
+.friends-card__close:hover { color: var(--ink); }
+.friends-card__title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+.friends-card__sub { color: var(--muted); font-size: 14px; line-height: 1.55; margin-bottom: 22px; }
+.friends-or { position: relative; margin: 20px 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+.friends-or::before, .friends-or::after {
+  content: ""; position: absolute; top: 50%; width: 26%; height: 1px; background: var(--line);
+}
+.friends-or::before { left: 0; } .friends-or::after { right: 0; }
+.friends-join { display: flex; gap: 10px; }
+.friends-join .guest-input { flex: 1; letter-spacing: 3px; font-weight: 700; }
+
+/* =========================================================
+   Lobby
+   ========================================================= */
+.lobby {
+  width: min(520px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); backdrop-filter: blur(16px);
+  padding: clamp(28px, 5vh, 44px); animation: rise 0.5s var(--ease) both;
+}
+.lobby__status { color: var(--ink); font-size: 18px; font-weight: 600; margin: 18px 0 20px; }
+.lobby__players { list-style: none; display: flex; flex-direction: column; gap: 10px; margin: 0 0 22px; padding: 0; }
+.lobby-player {
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px 16px; animation: rise 0.3s var(--ease) both;
+}
+.lobby-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 12px currentColor; }
+.lobby-pname { font-weight: 600; font-size: 15px; }
+.lobby-you, .lobby-host {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle;
+}
+.lobby-you { background: rgba(255,210,63,0.16); color: var(--you); }
+.lobby-host { background: rgba(124,243,255,0.16); color: var(--accent); }
+.lobby__code-wrap { margin: 0 0 22px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.lobby__code-label { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+.lobby__code {
+  font-family: "JetBrains Mono", monospace; font-size: 34px; font-weight: 700;
+  letter-spacing: 8px; color: var(--accent); padding-left: 8px;
+}
+.lobby__actions { display: flex; gap: 12px; justify-content: center; }
+.lobby__hint { color: var(--muted); font-size: 13px; margin-top: 16px; min-height: 18px; }
+
+/* keep the auth gate hidden on true touch devices so the desktop gate wins */
+@media (pointer: coarse) and (hover: none) {
+  .auth-gate { display: none; }
 }
 
 /* reduced motion */

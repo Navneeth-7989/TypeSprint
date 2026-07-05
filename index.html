@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SPRINT · Typing Race</title>
-  <meta name="description" content="A high-end single-player typing race. Beat four bots by typing fast and accurately." />
+  <title>SPRINT · Live Typing Race</title>
+  <meta name="description" content="Race real people in a live typing sprint. Sign in with Google or play as a guest, match instantly, or challenge friends in a private room." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,6 +21,39 @@
     </div>
   </div>
 
+  <!-- ============ AUTH GATE ============ -->
+  <div id="auth-gate" class="auth-gate">
+    <div class="auth-card">
+      <div class="menu__badge">SPRINT · LIVE TYPING RACE</div>
+      <h1 class="auth-card__title">SPRINT</h1>
+      <p class="auth-card__subtitle">Race real people in a live typing sprint. Sign in to save your name and stats, or jump straight in as a guest.</p>
+
+      <div id="auth-actions" class="auth-card__actions">
+        <button id="btn-google" class="btn btn--google btn--xl">
+          <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+        <button id="btn-guest" class="btn btn--ghost btn--xl">Play as Guest</button>
+      </div>
+
+      <form id="guest-form" class="guest-form" hidden>
+        <label id="guest-form-label" class="guest-form__label">Choose a display name</label>
+        <input id="guest-name-input" class="guest-input" placeholder="Your name" maxlength="16" autocomplete="off" />
+        <div class="guest-form__row">
+          <button type="button" id="btn-guest-back" class="btn btn--ghost">Back</button>
+          <button type="submit" id="btn-guest-go" class="btn btn--primary">Enter</button>
+        </div>
+      </form>
+
+      <p id="auth-error" class="auth-error" hidden></p>
+    </div>
+  </div>
+
   <div id="app" class="app">
     <!-- Ambient background -->
     <div class="bg">
@@ -33,53 +66,80 @@
       <div class="bg__grain"></div>
     </div>
 
+    <!-- Signed-in chip -->
+    <div id="user-chip" class="user-chip" hidden>
+      <img id="user-avatar" class="user-chip__avatar" alt="" />
+      <span id="user-name" class="user-chip__name">Racer</span>
+      <button id="btn-signout" class="user-chip__signout">Sign out</button>
+    </div>
+
     <!-- ============ MENU SCREEN ============ -->
     <section id="screen-menu" class="screen screen--menu is-active">
       <div class="menu">
-        <div class="menu__badge">SINGLE PLAYER · YOU vs 4 BOTS</div>
+        <div class="menu__badge">LIVE MULTIPLAYER · REAL PLAYERS + BOTS</div>
         <h1 class="menu__title">
           <span class="menu__title-word">SPRINT</span>
         </h1>
-        <p class="menu__subtitle">Type the passage. Every correct keystroke pushes your runner down the track. Out-type the bots to win the race.</p>
+        <p class="menu__subtitle">Type the passage. Every correct keystroke pushes your runner down the track. Out-type the field to win the race.</p>
 
-        <div class="menu__racers">
-          <div class="racer-chip racer-chip--you">
-            <span class="racer-chip__dot"></span> YOU <small>win at 95+ WPM</small>
-          </div>
-          <div class="racer-chip racer-chip--easy">
-            <span class="racer-chip__dot"></span> Rookie <small>~50 WPM</small>
-          </div>
-          <div class="racer-chip racer-chip--medium">
-            <span class="racer-chip__dot"></span> Blaze <small>~78 WPM</small>
-          </div>
-          <div class="racer-chip racer-chip--medium2">
-            <span class="racer-chip__dot"></span> Nova <small>~78 WPM</small>
-          </div>
-          <div class="racer-chip racer-chip--hard">
-            <span class="racer-chip__dot"></span> Titan <small>90–100+ WPM</small>
+        <div class="menu__actions">
+          <button id="btn-race-now" class="btn btn--primary btn--xl">
+            <span>Race Now</span>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
+          <div class="menu__actions-row">
+            <button id="btn-solo" class="btn btn--ghost">Practice vs Bots</button>
+            <button id="btn-friends" class="btn btn--ghost">Play with Friends</button>
           </div>
         </div>
 
-        <div class="menu__length">
-          <span class="menu__length-label">Race length</span>
-          <div class="seg" id="length-seg">
-            <button class="seg__btn" data-len="short">Short</button>
-            <button class="seg__btn is-selected" data-len="medium">Medium</button>
-            <button class="seg__btn" data-len="long">Long</button>
+        <p class="menu__hint">Signed in as <strong id="menu-you-name">Racer</strong> · press <kbd>Enter</kbd> to race now</p>
+      </div>
+
+      <!-- Friends panel -->
+      <div id="friends-panel" class="friends-panel">
+        <div class="friends-card">
+          <button id="btn-friends-close" class="friends-card__close" aria-label="Close">×</button>
+          <h2 class="friends-card__title">Play with Friends</h2>
+          <p class="friends-card__sub">Create a private room and share the code, or join a friend's room.</p>
+
+          <button id="btn-create-private" class="btn btn--primary btn--block">Create private room</button>
+
+          <div class="friends-or"><span>or join with a code</span></div>
+
+          <div class="friends-join">
+            <input id="join-code-input" class="guest-input" placeholder="ABC12" maxlength="5" autocomplete="off" style="text-transform:uppercase" />
+            <button id="btn-join-code" class="btn btn--ghost">Join</button>
           </div>
+          <p id="friends-error" class="auth-error" hidden></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LOBBY SCREEN ============ -->
+    <section id="screen-lobby" class="screen screen--menu">
+      <div class="lobby">
+        <div class="menu__badge" id="lobby-title">Finding racers</div>
+        <p class="lobby__status" id="lobby-status">Looking for players…</p>
+
+        <ul class="lobby__players" id="lobby-players"></ul>
+
+        <div class="lobby__code-wrap" id="lobby-code-wrap" hidden>
+          <span class="lobby__code-label">Room code</span>
+          <div class="lobby__code" id="lobby-code">—</div>
+          <button id="btn-copy-link" class="btn btn--ghost">Copy invite link</button>
         </div>
 
-        <button id="btn-start" class="btn btn--primary btn--xl">
-          <span>Start Race</span>
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-        </button>
-        <p class="menu__hint">Tip: press <kbd>Enter</kbd> to start · <kbd>Esc</kbd> to reset</p>
+        <div class="lobby__actions">
+          <button id="btn-lobby-start" class="btn btn--primary" hidden>Start race</button>
+          <button id="btn-lobby-leave" class="btn btn--ghost">Leave</button>
+        </div>
+        <p class="lobby__hint" id="lobby-hint"></p>
       </div>
     </section>
 
     <!-- ============ RACE SCREEN ============ -->
     <section id="screen-race" class="screen screen--race">
-      <!-- HUD -->
       <header class="hud">
         <div class="hud__stat">
           <div class="hud__value" id="hud-wpm">0</div>
@@ -103,7 +163,6 @@
         </div>
       </header>
 
-      <!-- Track -->
       <div class="track" id="track">
         <div class="track__distance-marks"></div>
         <div class="track__lanes" id="lanes"><!-- lanes injected --></div>
@@ -112,7 +171,6 @@
         </div>
       </div>
 
-      <!-- Typing panel -->
       <div class="type-panel">
         <div class="type-panel__glow"></div>
         <div id="passage" class="passage" aria-hidden="true"><!-- chars injected --></div>
@@ -124,7 +182,6 @@
         </div>
       </div>
 
-      <!-- Countdown overlay -->
       <div id="countdown" class="countdown">
         <div class="countdown__num" id="countdown-num">3</div>
       </div>
@@ -145,13 +202,21 @@
           <button id="btn-again" class="btn btn--primary">Race again</button>
           <button id="btn-menu" class="btn btn--ghost">Main menu</button>
         </div>
-        <p class="results__hint">Press <kbd>Enter</kbd> to race again</p>
+        <p class="results__hint">Press <kbd>Enter</kbd> to continue</p>
       </div>
     </section>
   </div>
 
-  <div class="footer-credit">Built for desktop · keyboard racing</div>
+  <div class="footer-credit">Built for desktop · live keyboard racing</div>
 
+  <!-- Firebase compat SDK (classic scripts, no build step, very forgiving) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+  <!-- App scripts (order matters: init → auth → net → game) -->
+  <script src="firebase-init.js"></script>
+  <script src="auth.js"></script>
+  <script src="net.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

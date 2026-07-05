@@ -1,0 +1,14 @@
+# Local AI assistant notes (not part of the app)
+memory/
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+
+# Dependencies (not used, but just in case)
+node_modules/
+
+# Firebase local cache
+.firebase/
