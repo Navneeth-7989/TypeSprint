@@ -7,7 +7,12 @@
       "Bash(curl -s -o /dev/null -w \"reload index -> HTTP %{http_code}\\\\n\" http://localhost:5173/game.js)",
       "Bash(node -e ' *)",
       "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('styles.css','utf8'\\);const o=\\(s.match\\(/{/g\\)||[]\\).length,c=\\(s.match\\(/}/g\\)||[]\\).length;console.log\\('CSS braces:',o,c,o===c?'BALANCED':'MISMATCH'\\)\")",
-      "Bash(timeout 3 curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5500/)"
+      "Bash(timeout 3 curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5500/)",
+      "Bash(py --version)",
+      "Bash(python *)",
+      "Bash(curl *)",
+      "Bash(findstr /C:\"username-form\" /C:\"signout-modal\")",
+      "Bash(Select-String -Pattern \"showUsernameStep|signout-modal|proceed\")"
     ]
   }
 }

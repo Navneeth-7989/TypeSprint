@@ -705,6 +705,11 @@ kbd {
 .guest-input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.08); }
 .auth-error { color: var(--bad); font-size: 13px; margin-top: 14px; line-height: 1.5; }
 
+/* live @username availability hint */
+#username-hint { margin: 2px 0 4px; transition: color .15s ease; }
+#username-hint.is-ok  { color: var(--good); }
+#username-hint.is-bad { color: var(--bad); }
+
 /* =========================================================
    Signed-in chip
    ========================================================= */
@@ -764,6 +769,109 @@ kbd {
 .friends-or::before { left: 0; } .friends-or::after { right: 0; }
 .friends-join { display: flex; gap: 10px; }
 .friends-join .guest-input { flex: 1; letter-spacing: 3px; font-weight: 700; }
+
+/* ---- two-pane friends hub ---- */
+.friends-card--wide { width: min(780px, 94vw); text-align: left; padding: 30px; }
+.friends-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.friends-pane { padding: 4px 26px; }
+.friends-pane:first-child { border-right: 1px solid var(--line); }
+.friends-pane--social { display: flex; flex-direction: column; }
+.friends-card--wide .friends-card__title { font-size: 20px; margin-bottom: 6px; }
+.friends-card--wide .friends-card__sub { margin-bottom: 18px; }
+
+/* small button variant used inside rows */
+.btn--sm { font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 10px; }
+
+/* social pane content */
+.friends-social { display: flex; flex-direction: column; min-height: 240px; }
+.fr-me { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.fr-me strong { color: var(--accent); }
+.fr-search { margin-bottom: 10px; }
+.fr-search .guest-input { width: 100%; }
+.fr-subhead {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin: 16px 0 8px; display: flex; align-items: center; gap: 6px;
+}
+.fr-count { color: var(--accent); font-weight: 700; letter-spacing: 0; }
+
+.fr-list { display: flex; flex-direction: column; gap: 6px; max-height: 190px; overflow-y: auto; }
+.fr-list--results { max-height: 168px; }
+.fr-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px; border-radius: 12px; background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+.fr-ava {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; color: #05122a;
+}
+.fr-ava svg { width: 16px; height: 16px; }
+.fr-id { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.fr-name { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-handle { font-size: 12px; color: var(--muted); }
+.fr-actions { flex: none; display: flex; gap: 6px; align-items: center; }
+.fr-tag { font-size: 12px; color: var(--muted); padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.fr-none, .fr-hint { color: var(--muted); font-size: 13px; padding: 6px 2px; line-height: 1.5; }
+.fr-remove { padding: 8px 11px; color: var(--muted); }
+.fr-remove:hover { color: var(--bad); }
+
+.fr-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.fr-dot.is-on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+.fr-dot.is-off { background: #55608a; }
+
+/* guest / claim states */
+.fr-empty { text-align: center; margin: auto; padding: 20px 6px; }
+.fr-empty__icon { font-size: 34px; margin-bottom: 12px; }
+.fr-empty p { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.fr-empty__sub { font-size: 12px; margin-top: 10px; opacity: 0.8; }
+.fr-claim { margin: auto 0; }
+.fr-claim__lead { color: var(--muted); font-size: 14px; line-height: 1.55; margin-bottom: 16px; }
+.fr-claim__row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.fr-claim__row .guest-input { flex: 1; }
+.fr-at { font-size: 20px; font-weight: 700; color: var(--accent); }
+
+/* badge on the Friends button */
+.friends-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #05122a; border-radius: 9px;
+  background: var(--bad); box-shadow: 0 0 10px rgba(255, 93, 115, 0.6);
+}
+
+/* incoming 1v1 challenge modal */
+.challenge-modal {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(5, 8, 20, 0.78); backdrop-filter: blur(6px);
+}
+.challenge-modal[hidden] { display: none; }
+.challenge-card {
+  width: min(400px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); padding: 32px 30px; animation: rise 0.35s var(--ease) both;
+}
+.challenge-card__icon { font-size: 40px; margin-bottom: 10px; animation: challengePulse 1.1s ease-in-out infinite; }
+@keyframes challengePulse { 50% { transform: scale(1.12); } }
+.challenge-card__title { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+.challenge-card__text { color: var(--muted); font-size: 15px; margin-bottom: 22px; }
+.challenge-card__text strong { color: var(--ink); }
+.challenge-card__actions { display: flex; gap: 12px; justify-content: center; }
+
+/* menu-level toast */
+.menu-toast {
+  position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 16px);
+  z-index: 70; max-width: 90vw;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 20px; font-size: 14px; font-weight: 600; color: var(--ink);
+  box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none;
+  transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+}
+.menu-toast.is-in { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 640px) {
+  .friends-split { grid-template-columns: 1fr; }
+  .friends-pane:first-child { border-right: none; border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 22px; }
+}
 
 /* =========================================================
    Lobby

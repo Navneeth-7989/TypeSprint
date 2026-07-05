@@ -923,6 +923,26 @@
 
   const roomCbs = { onRoom, onError: (e) => toast(e.message || "Network error") };
 
+  /* ---------- friends bridge ----------
+     The social UI (friends.js) drives races through this tiny hook so it can
+     reuse the exact room flow the menu uses — no duplicate lobby logic. */
+  window.SprintGame = {
+    // Host a private room, then fire a live challenge invite at the friend.
+    // The challenger lands in the normal private lobby and presses Start once
+    // the friend joins.
+    challengeFriend(friendUid) {
+      if (!net()) return Promise.reject(new Error("Still connecting…"));
+      closeFriends();
+      return net().createPrivate(roomCbs).then(({ roomId, code }) =>
+        net().sendChallenge(friendUid, { roomId, code }));
+    },
+    // Accept an incoming challenge by joining the challenger's room.
+    acceptChallenge(roomId) {
+      closeFriends();
+      doJoinRoomId(roomId);
+    },
+  };
+
   async function doRaceNow() {
     if (!net()) return toast("Still connecting…");
     disableMenu(true);

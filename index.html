@@ -50,6 +50,17 @@
         </div>
       </form>
 
+      <form id="username-form" class="guest-form" hidden>
+        <label class="guest-form__label">Pick a unique username</label>
+        <div class="fr-claim__row">
+          <span class="fr-at">@</span>
+          <input id="username-input" class="guest-input" placeholder="yourname" maxlength="16" autocomplete="off" spellcheck="false" />
+        </div>
+        <p id="username-hint" class="fr-hint">3–16 characters · letters, numbers, underscore</p>
+        <button type="submit" id="btn-username-go" class="btn btn--primary btn--block">Continue</button>
+        <p id="username-error" class="auth-error" hidden></p>
+      </form>
+
       <p id="auth-error" class="auth-error" hidden></p>
     </div>
   </div>
@@ -91,7 +102,7 @@
           </button>
           <div class="menu__actions-row">
             <button id="btn-solo" class="btn btn--ghost">Practice vs Bots</button>
-            <button id="btn-friends" class="btn btn--ghost">Play with Friends</button>
+            <button id="btn-friends" class="btn btn--ghost">Friends<span id="friends-badge" class="friends-badge" hidden></span></button>
           </div>
         </div>
 
@@ -100,20 +111,33 @@
 
       <!-- Friends panel -->
       <div id="friends-panel" class="friends-panel">
-        <div class="friends-card">
+        <div class="friends-card friends-card--wide">
           <button id="btn-friends-close" class="friends-card__close" aria-label="Close">×</button>
-          <h2 class="friends-card__title">Play with Friends</h2>
-          <p class="friends-card__sub">Create a private room and share the code, or join a friend's room.</p>
+          <div class="friends-split">
 
-          <button id="btn-create-private" class="btn btn--primary btn--block">Create private room</button>
+            <!-- LEFT: rooms / code (unchanged behaviour) -->
+            <div class="friends-pane">
+              <h2 class="friends-card__title">Play together</h2>
+              <p class="friends-card__sub">Create a private room and share the code, or join a friend's room.</p>
 
-          <div class="friends-or"><span>or join with a code</span></div>
+              <button id="btn-create-private" class="btn btn--primary btn--block">Create private room</button>
 
-          <div class="friends-join">
-            <input id="join-code-input" class="guest-input" placeholder="ABC12" maxlength="5" autocomplete="off" style="text-transform:uppercase" />
-            <button id="btn-join-code" class="btn btn--ghost">Join</button>
+              <div class="friends-or"><span>or join with a code</span></div>
+
+              <div class="friends-join">
+                <input id="join-code-input" class="guest-input" placeholder="ABC12" maxlength="5" autocomplete="off" style="text-transform:uppercase" />
+                <button id="btn-join-code" class="btn btn--ghost">Join</button>
+              </div>
+              <p id="friends-error" class="auth-error" hidden></p>
+            </div>
+
+            <!-- RIGHT: friends + search + challenge (populated by friends.js) -->
+            <div class="friends-pane friends-pane--social">
+              <h2 class="friends-card__title">Your friends</h2>
+              <div id="friends-social" class="friends-social"><!-- injected by friends.js --></div>
+            </div>
+
           </div>
-          <p id="friends-error" class="auth-error" hidden></p>
         </div>
       </div>
     </section>
@@ -236,6 +260,35 @@
 
   <div class="footer-credit">Built for desktop · live keyboard racing</div>
 
+  <!-- Incoming 1v1 challenge -->
+  <div id="challenge-modal" class="challenge-modal" hidden>
+    <div class="challenge-card">
+      <div class="challenge-card__icon">⚔️</div>
+      <h2 class="challenge-card__title">Challenge!</h2>
+      <p class="challenge-card__text"><strong id="challenge-from">A racer</strong> challenges you to a 1v1.</p>
+      <div class="challenge-card__actions">
+        <button id="btn-challenge-accept" class="btn btn--primary">Accept</button>
+        <button id="btn-challenge-decline" class="btn btn--ghost">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign-out confirmation -->
+  <div id="signout-modal" class="challenge-modal" hidden>
+    <div class="challenge-card">
+      <div class="challenge-card__icon">👋</div>
+      <h2 class="challenge-card__title">Sign out?</h2>
+      <p class="challenge-card__text">Are you sure you want to exit? You'll be returned to the sign-in screen.</p>
+      <div class="challenge-card__actions">
+        <button id="btn-signout-confirm" class="btn btn--primary">Yes, sign out</button>
+        <button id="btn-signout-cancel" class="btn btn--ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightweight menu-level toast -->
+  <div id="menu-toast" class="menu-toast" hidden></div>
+
   <!-- Firebase compat SDK (classic scripts, no build step, very forgiving) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
@@ -245,5 +298,6 @@
   <script src="auth.js"></script>
   <script src="net.js"></script>
   <script src="game.js"></script>
+  <script src="friends.js"></script>
 </body>
 </html>

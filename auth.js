@@ -24,6 +24,19 @@
   var chipName   = $("#user-name");
   var chipAvatar = $("#user-avatar");
 
+  // Unique-username step (Google only)
+  var userForm   = $("#username-form");
+  var userInput  = $("#username-input");
+  var userHint   = $("#username-hint");
+  var userError  = $("#username-error");
+  var userGo     = $("#btn-username-go");
+
+  // Sign-out confirmation
+  var signoutModal   = $("#signout-modal");
+  var signoutConfirm = $("#btn-signout-confirm");
+  var signoutCancel  = $("#btn-signout-cancel");
+
+  var HANDLE_RE = /^[a-z0-9_]{3,16}$/;
   var pendingMethod = null; // "guest" | "google"
 
   var ADJ = ["Swift", "Turbo", "Rapid", "Nimble", "Blitz", "Zippy", "Flash", "Vivid", "Sonic", "Quill"];
@@ -66,7 +79,8 @@
     clearError();
   }
 
-  function publishUser(user, nameOverride) {
+  // Build + expose the user (updates the chip) but does NOT enter the app yet.
+  function setUser(user, nameOverride) {
     var name = (nameOverride && nameOverride.trim()) ||
                (user.displayName && user.displayName.trim()) ||
                localStorage.getItem("sprint_name") || randomName();
@@ -85,9 +99,85 @@
     chipAvatar.style.background =
       "linear-gradient(135deg, hsl(" + hue + " 78% 60%), hsl(" + ((hue + 40) % 360) + " 78% 48%))";
     chip.hidden = false;
+    return u;
+  }
 
+  // Drop the gate and let the rest of the app boot.
+  function enterApp(u) {
     gate.classList.add("is-hidden");
     document.dispatchEvent(new CustomEvent("sprint:auth", { detail: u }));
+  }
+
+  function whenNet(fn) {
+    if (window.SprintNet) fn();
+    else document.addEventListener("sprint:net-ready", fn, { once: true });
+  }
+
+  // Finish sign-in. Guests go straight in; Google accounts must own a unique
+  // @username first (claimed once, then reused everywhere — incl. Friends).
+  function proceed(user, nameOverride) {
+    var u = setUser(user, nameOverride);
+    if (u.isGuest) { enterApp(u); return; }
+    whenNet(function () {
+      window.SprintNet.getMyProfile().then(function (p) {
+        if (p && p.username) enterApp(u);
+        else showUsernameStep();
+      }).catch(function () { showUsernameStep(); });
+    });
+  }
+
+  /* ---- unique @username step (Google accounts only) ---- */
+  var uCheckTimer = null;
+
+  function setUserHint(msg, tone) {
+    userHint.textContent = msg;
+    userHint.classList.remove("is-ok", "is-bad");
+    if (tone) userHint.classList.add(tone === "ok" ? "is-ok" : "is-bad");
+  }
+
+  function showUsernameStep() {
+    actions.hidden = true;
+    guestForm.hidden = true;
+    userForm.hidden = false;
+    userError.hidden = true;
+    userGo.disabled = false; userGo.textContent = "Continue";
+    userInput.value = "";
+    setUserHint("3–16 characters · letters, numbers, underscore", "");
+    userInput.focus();
+  }
+
+  function onUsernameInput() {
+    var v = (userInput.value || "").trim().toLowerCase();
+    userError.hidden = true;
+    clearTimeout(uCheckTimer);
+    if (!v) { setUserHint("3–16 characters · letters, numbers, underscore", ""); return; }
+    if (!HANDLE_RE.test(v)) { setUserHint("Only letters, numbers, underscore (3–16).", "bad"); return; }
+    setUserHint("Checking availability…", "");
+    uCheckTimer = setTimeout(function () {
+      window.SprintNet.checkUsername(v).then(function (free) {
+        if ((userInput.value || "").trim().toLowerCase() !== v) return; // input changed
+        if (free) setUserHint("@" + v + " is available!", "ok");
+        else setUserHint("@" + v + " is taken — try another.", "bad");
+      }).catch(function () { setUserHint("Couldn't check right now — you can still try.", ""); });
+    }, 300);
+  }
+
+  function submitUsername() {
+    var v = (userInput.value || "").trim().toLowerCase();
+    userError.hidden = true;
+    if (!HANDLE_RE.test(v)) {
+      userError.textContent = "Pick 3–16 characters: letters, numbers, underscore.";
+      userError.hidden = false; return;
+    }
+    userGo.disabled = true; userGo.textContent = "Saving…";
+    window.SprintNet.claimUsername(v).then(function () {
+      enterApp(window.SPRINT_USER);
+    }).catch(function (e) {
+      userGo.disabled = false; userGo.textContent = "Continue";
+      userError.textContent = (e && e.message) || "That username is taken. Try another.";
+      userError.hidden = false;
+      setUserHint("@" + v + " is taken — try another.", "bad");
+    });
   }
 
   function submitName() {
@@ -108,7 +198,7 @@
       var user = cred.user;
       return user.updateProfile({ displayName: finalName })
         .catch(function () {})
-        .then(function () { publishUser(user, finalName); });
+        .then(function () { proceed(user, finalName); });
     }).catch(function (e) {
       console.error("[auth]", e);
       setBusy(false);
@@ -140,15 +230,31 @@
   if (guestName) guestName.addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); submitName(); }
   });
-  if (bso) bso.addEventListener("click", function () {
+  if (userInput) userInput.addEventListener("input", onUsernameInput);
+  if (userForm)  userForm.addEventListener("submit", function (e) { e.preventDefault(); submitUsername(); });
+
+  /* ---- sign out: confirm before exiting ---- */
+  function doSignOut() {
     (auth ? auth.signOut() : Promise.resolve()).then(function () { location.reload(); }, function () { location.reload(); });
+  }
+  function closeSignout() { if (signoutModal) signoutModal.hidden = true; }
+  if (bso) bso.addEventListener("click", function () {
+    if (signoutModal) signoutModal.hidden = false; else doSignOut();
+  });
+  if (signoutConfirm) signoutConfirm.addEventListener("click", doSignOut);
+  if (signoutCancel)  signoutCancel.addEventListener("click", closeSignout);
+  if (signoutModal) signoutModal.addEventListener("click", function (e) {
+    if (e.target === signoutModal) closeSignout(); // click backdrop to dismiss
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && signoutModal && !signoutModal.hidden) closeSignout();
   });
 
   /* ---- auto-continue a returning session (never blocks the buttons) ---- */
   if (auth) {
     auth.onAuthStateChanged(function (user) {
-      if (user && !window.SPRINT_USER && guestForm.hidden) {
-        publishUser(user, localStorage.getItem("sprint_name") || user.displayName);
+      if (user && !window.SPRINT_USER && guestForm.hidden && userForm.hidden) {
+        proceed(user, localStorage.getItem("sprint_name") || user.displayName);
       }
     });
   }

@@ -25,6 +25,62 @@
           }
         }
       }
+    },
+
+    "users": {
+      ".read": "auth != null",
+      ".indexOn": ["username"],
+      "$uid": {
+        ".write": "auth != null && $uid === auth.uid && auth.token.firebase.sign_in_provider != 'anonymous'"
+      }
+    },
+
+    "usernames": {
+      ".read": "auth != null",
+      "$handle": {
+        ".write": "auth != null && auth.token.firebase.sign_in_provider != 'anonymous' && (!data.exists() ? newData.val() === auth.uid : data.val() === auth.uid)"
+      }
+    },
+
+    "presence": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && $uid === auth.uid"
+      }
+    },
+
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$friendUid": {
+          ".write": "auth != null && (auth.uid === $uid || auth.uid === $friendUid)"
+        }
+      }
+    },
+
+    "friendRequests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "incoming": {
+          "$fromUid": {
+            ".write": "auth != null && (auth.uid === $fromUid || auth.uid === $uid)"
+          }
+        },
+        "outgoing": {
+          "$toUid": {
+            ".write": "auth != null && (auth.uid === $uid || (auth.uid === $toUid && !newData.exists()))"
+          }
+        }
+      }
+    },
+
+    "challenges": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$challengeId": {
+          ".write": "auth != null && (auth.uid === $uid || (newData.exists() ? newData.child('fromUid').val() === auth.uid : data.child('fromUid').val() === auth.uid))"
+        }
+      }
     }
   }
 }

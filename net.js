@@ -276,6 +276,211 @@
     });
   }
 
+  /* =========================================================
+     SOCIAL LAYER — profiles, presence, friends, challenges
+     Only real (Google) accounts participate; guests are skipped.
+     ========================================================= */
+
+  function isReal(u) { return u && !u.isGuest; }
+
+  // Publish/refresh my public profile + start presence heartbeat. Called once
+  // auth resolves. Never clobbers an already-claimed username.
+  function bootstrapProfile() {
+    var u = me();
+    if (!db || !isReal(u)) return;
+    db.ref("users/" + u.uid).update({
+      displayName: u.name, photoURL: u.photoURL || null, updatedAt: TS,
+    }).catch(function () {});
+    setupPresence(u.uid);
+  }
+
+  function setupPresence(uid) {
+    var ref = db.ref("presence/" + uid);
+    var conn = db.ref(".info/connected");
+    conn.on("value", function (s) {
+      if (s.val() === false) return;
+      ref.onDisconnect().set({ state: "offline", lastSeen: TS }).then(function () {
+        ref.set({ state: "online", lastSeen: TS });
+      });
+    });
+  }
+
+  // Username: lowercase handle, 3-16 chars, letters/digits/underscore.
+  var HANDLE_RE = /^[a-z0-9_]{3,16}$/;
+  function normalizeHandle(h) { return String(h || "").trim().toLowerCase(); }
+
+  function claimUsername(handle) {
+    var u = me();
+    handle = normalizeHandle(handle);
+    if (!isReal(u)) return Promise.reject(new Error("Sign in with Google to pick a username."));
+    if (!HANDLE_RE.test(handle)) {
+      return Promise.reject(new Error("3-16 chars: letters, numbers, underscore."));
+    }
+    // Atomic multi-path write; the /usernames rule rejects a taken handle.
+    var update = {};
+    update["usernames/" + handle] = u.uid;
+    update["users/" + u.uid + "/username"] = handle;
+    update["users/" + u.uid + "/displayName"] = u.name;
+    update["users/" + u.uid + "/photoURL"] = u.photoURL || null;
+    update["users/" + u.uid + "/updatedAt"] = TS;
+    return db.ref().update(update).then(function () { return handle; }, function () {
+      throw new Error("That username is taken. Try another.");
+    });
+  }
+
+  function getMyProfile() {
+    var u = me();
+    if (!isReal(u)) return Promise.resolve(null);
+    return db.ref("users/" + u.uid).once("value").then(function (s) { return s.val(); });
+  }
+
+  // Is a handle free to claim? True when unclaimed or already owned by me.
+  function checkUsername(handle) {
+    var u = me();
+    handle = normalizeHandle(handle);
+    if (!HANDLE_RE.test(handle)) return Promise.resolve(false);
+    return db.ref("usernames/" + handle).once("value").then(function (s) {
+      return !s.exists() || (u && s.val() === u.uid);
+    });
+  }
+
+  // Prefix search by username (needs .indexOn username). Excludes self.
+  function searchUsers(prefix) {
+    var u = me();
+    prefix = normalizeHandle(prefix);
+    if (!prefix) return Promise.resolve([]);
+    return db.ref("users").orderByChild("username")
+      .startAt(prefix).endAt(prefix + "").limitToFirst(12)
+      .once("value").then(function (snap) {
+        var out = [];
+        snap.forEach(function (c) {
+          var v = c.val();
+          if (c.key !== u.uid && v && v.username) {
+            out.push({ uid: c.key, username: v.username, displayName: v.displayName || v.username, photoURL: v.photoURL || null });
+          }
+        });
+        return out;
+      });
+  }
+
+  function sendFriendRequest(toUid) {
+    var u = me();
+    return getMyProfile().then(function (prof) {
+      var update = {};
+      update["friendRequests/" + toUid + "/incoming/" + u.uid] = {
+        username: (prof && prof.username) || null, displayName: u.name, at: TS,
+      };
+      update["friendRequests/" + u.uid + "/outgoing/" + toUid] = { at: TS };
+      return db.ref().update(update);
+    });
+  }
+
+  function acceptFriendRequest(fromUid) {
+    var u = me();
+    var update = {};
+    update["friends/" + u.uid + "/" + fromUid] = { since: TS };
+    update["friends/" + fromUid + "/" + u.uid] = { since: TS };
+    update["friendRequests/" + u.uid + "/incoming/" + fromUid] = null;
+    update["friendRequests/" + fromUid + "/outgoing/" + u.uid] = null;
+    return db.ref().update(update);
+  }
+
+  function declineFriendRequest(fromUid) {
+    var u = me();
+    var update = {};
+    update["friendRequests/" + u.uid + "/incoming/" + fromUid] = null;
+    update["friendRequests/" + fromUid + "/outgoing/" + u.uid] = null;
+    return db.ref().update(update);
+  }
+
+  function removeFriend(friendUid) {
+    var u = me();
+    var update = {};
+    update["friends/" + u.uid + "/" + friendUid] = null;
+    update["friends/" + friendUid + "/" + u.uid] = null;
+    return db.ref().update(update);
+  }
+
+  // Hydrate a list of friend uids into profile objects.
+  function loadProfiles(uids) {
+    return Promise.all(uids.map(function (uid) {
+      return db.ref("users/" + uid).once("value").then(function (s) {
+        var v = s.val() || {};
+        return { uid: uid, username: v.username || null, displayName: v.displayName || v.username || "Racer", photoURL: v.photoURL || null };
+      });
+    }));
+  }
+
+  function watchFriends(cb) {
+    var u = me();
+    if (!isReal(u)) { cb([]); return function () {}; }
+    var ref = db.ref("friends/" + u.uid);
+    var handler = ref.on("value", function (snap) {
+      var uids = snap.exists() ? Object.keys(snap.val()) : [];
+      loadProfiles(uids).then(cb);
+    });
+    return function () { ref.off("value", handler); };
+  }
+
+  function watchIncomingRequests(cb) {
+    var u = me();
+    if (!isReal(u)) { cb([]); return function () {}; }
+    var ref = db.ref("friendRequests/" + u.uid + "/incoming");
+    var handler = ref.on("value", function (snap) {
+      var list = [];
+      snap.forEach(function (c) {
+        var v = c.val() || {};
+        list.push({ uid: c.key, username: v.username || null, displayName: v.displayName || v.username || "Racer", at: v.at || 0 });
+      });
+      cb(list);
+    });
+    return function () { ref.off("value", handler); };
+  }
+
+  function watchPresence(uid, cb) {
+    var ref = db.ref("presence/" + uid);
+    var handler = ref.on("value", function (s) {
+      var v = s.val();
+      cb(v && v.state === "online" ? "online" : "offline");
+    });
+    return function () { ref.off("value", handler); };
+  }
+
+  function watchChallenges(cb) {
+    var u = me();
+    if (!isReal(u)) { cb([]); return function () {}; }
+    var ref = db.ref("challenges/" + u.uid);
+    var handler = ref.on("value", function (snap) {
+      var list = [];
+      snap.forEach(function (c) {
+        var v = c.val() || {};
+        list.push({ id: c.key, fromUid: v.fromUid, fromName: v.fromName || "A racer", roomId: v.roomId, code: v.code || null, at: v.at || 0 });
+      });
+      cb(list);
+    });
+    return function () { ref.off("value", handler); };
+  }
+
+  function sendChallenge(toUid, data) {
+    var u = me();
+    var ref = db.ref("challenges/" + toUid).push();
+    // Auto-cancel the invite if the challenger drops before it's answered.
+    ref.onDisconnect().remove();
+    return ref.set({
+      fromUid: u.uid, fromName: u.name, roomId: data.roomId, code: data.code || null, at: TS,
+    }).then(function () { return { id: ref.key, ref: ref }; });
+  }
+
+  function clearChallenge(id) {
+    var u = me();
+    if (!id) return Promise.resolve();
+    return db.ref("challenges/" + u.uid + "/" + id).remove().catch(function () {});
+  }
+
+  // Kick off profile + presence as soon as we know who the user is.
+  if (window.SPRINT_USER) bootstrapProfile();
+  else document.addEventListener("sprint:auth", bootstrapProfile, { once: true });
+
   /* ===================== PUBLIC API ===================== */
   window.SprintNet = {
     configure: function (o) { for (var k in o) cfg[k] = o[k]; },
@@ -288,6 +493,21 @@
     sendProgress: sendProgress,
     sendFinished: sendFinished,
     leave: leave,
+    // social
+    claimUsername: claimUsername,
+    checkUsername: checkUsername,
+    getMyProfile: getMyProfile,
+    searchUsers: searchUsers,
+    sendFriendRequest: sendFriendRequest,
+    acceptFriendRequest: acceptFriendRequest,
+    declineFriendRequest: declineFriendRequest,
+    removeFriend: removeFriend,
+    watchFriends: watchFriends,
+    watchIncomingRequests: watchIncomingRequests,
+    watchPresence: watchPresence,
+    watchChallenges: watchChallenges,
+    sendChallenge: sendChallenge,
+    clearChallenge: clearChallenge,
     get roomId() { return cur ? cur.roomId : null; },
   };
 
