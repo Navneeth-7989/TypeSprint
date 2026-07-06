@@ -30,6 +30,9 @@
     name: $("#profile-name"),
     handle: $("#profile-handle"),
     records: $("#profile-records"),
+    since: $("#profile-since"),
+    wrPct: $("#profile-wr-pct"),
+    wrFill: $("#profile-wr-fill"),
     trend: $("#profile-trend"),
     spark: $("#profile-spark"),
     races: $("#profile-races"),
@@ -141,6 +144,20 @@
         "linear-gradient(135deg, hsl(" + hue + " 78% 60%), hsl(" + ((hue + 40) % 360) + " 78% 48%))";
     }
 
+    // "Racing since" — the account's creation date from Firebase auth.
+    var au = window.SprintAuth && window.SprintAuth.currentUser;
+    var created = au && au.metadata && au.metadata.creationTime;
+    if (created) {
+      var cd = new Date(created);
+      el.since.querySelector("span").textContent =
+        "Racing since " + MONTHS[cd.getMonth()] + " " + cd.getFullYear();
+      el.since.hidden = false;
+    } else {
+      el.since.hidden = true;
+    }
+    el.wrPct.textContent = "0%";
+    el.wrFill.style.width = "0%";
+
     // loading state
     el.records.innerHTML = "";
     el.trend.hidden = true;
@@ -189,12 +206,23 @@
   }
 
   function renderRecords(stats) {
+    var races = stats.races || 0;
+    var wins = stats.wins || 0;
+    var avgWpm = races ? Math.round((stats.sumWpm || 0) / races) : 0;
+    var avgAcc = races ? Math.round((stats.sumAcc || 0) / races) : 0;
     var cards = [
       { icon: "⚡", val: stats.bestWpm || 0, suffix: "", label: "Highest WPM", cls: "profile-rec--gold" },
+      { icon: "🚀", val: avgWpm, suffix: "", label: "Avg speed", cls: "profile-rec--avg" },
       { icon: "🎯", val: stats.bestAcc || 0, suffix: "%", label: "Best accuracy", cls: "" },
-      { icon: "🏁", val: stats.races || 0, suffix: "", label: "Races", cls: "" },
-      { icon: "🏆", val: stats.wins || 0, suffix: "", label: "Wins", cls: "profile-rec--win" },
+      { icon: "📊", val: avgAcc, suffix: "%", label: "Avg accuracy", cls: "profile-rec--avg" },
+      { icon: "🏁", val: races, suffix: "", label: "Races", cls: "" },
+      { icon: "🏆", val: wins, suffix: "", label: "Wins", cls: "profile-rec--win" },
     ];
+
+    // win-rate bar: count the % up while the gold fill sweeps across
+    var pct = races ? Math.round((wins / races) * 100) : 0;
+    countUp(el.wrPct, pct, "%", 1100);
+    requestAnimationFrame(function () { el.wrFill.style.width = pct + "%"; });
     el.records.innerHTML = cards.map(function (c, i) {
       return '<div class="profile-rec ' + c.cls + '" style="animation-delay:' + (i * 0.07).toFixed(2) + 's">' +
         '<span class="profile-rec__icon">' + c.icon + '</span>' +

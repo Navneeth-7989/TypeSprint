@@ -553,6 +553,8 @@
         s = s || {};
         s.races = (s.races || 0) + 1;
         s.wins = (s.wins || 0) + (rec.place === 1 ? 1 : 0);
+        s.sumWpm = (s.sumWpm || 0) + rec.wpm; // lifetime sums → averages
+        s.sumAcc = (s.sumAcc || 0) + rec.acc;
         if (rec.wpm > (s.bestWpm || 0)) s.bestWpm = rec.wpm;
         if (rec.acc > (s.bestAcc || 0)) s.bestAcc = rec.acc;
         return s;
@@ -563,7 +565,24 @@
   function getStats() {
     var u = me();
     if (!db || !isReal(u)) return Promise.resolve(null);
-    return db.ref("stats/" + u.uid).once("value").then(function (s) { return s.val(); });
+    return db.ref("stats/" + u.uid).once("value").then(function (s) {
+      var v = s.val();
+      if (!v || !v.races || v.sumWpm != null) return v;
+      // One-time backfill: races recorded before lifetime averages existed
+      // have no sums — rebuild them from the full history, then persist.
+      return db.ref("raceHistory/" + u.uid).once("value").then(function (h) {
+        var sumWpm = 0, sumAcc = 0;
+        h.forEach(function (c) {
+          var r = c.val() || {};
+          sumWpm += r.wpm || 0;
+          sumAcc += r.acc || 0;
+        });
+        return db.ref("stats/" + u.uid).update({ sumWpm: sumWpm, sumAcc: sumAcc }).then(function () {
+          v.sumWpm = sumWpm; v.sumAcc = sumAcc;
+          return v;
+        });
+      }).catch(function () { return v; });
+    });
   }
 
   // Newest-first page of race history. Pass the previous page's oldest key as
