@@ -119,6 +119,7 @@
     errors: 0,
     wrongCount: 0,          // uncorrected wrong chars currently on screen
     minWrong: Infinity,     // index of the earliest uncorrected wrong char
+    lockedUpto: 0,          // chars committed by completed words (can't backspace past)
     startPerf: 0,           // solo time base (performance.now)
     raceStartAt: 0,         // multi time base (server ms)
     liveAt: false,          // has the countdown finished (typing allowed)?
@@ -502,6 +503,7 @@
     S.errors = 0;
     S.wrongCount = 0;
     S.minWrong = Infinity;
+    S.lockedUpto = 0;
     S.finished = false;
     S.liveAt = false;
   }
@@ -620,7 +622,8 @@
     if (S.phase !== "racing" || !S.liveAt || S.finished) return;
     if (e.key === "Backspace") {
       e.preventDefault();
-      if (S.typedCount > 0) {
+      // Only the current word is editable — stop at the last committed word.
+      if (S.typedCount > S.lockedUpto) {
         S.typedCount--;
         const span = S.chars[S.typedCount];
         if (span.classList.contains("correct")) S.correctChars--;
@@ -663,6 +666,10 @@
       span.classList.remove("wrong");
       S.correctChars++;
       S.typedCount++;
+      // A correctly typed space commits the word before it: once a word is
+      // done it's locked, so backspace can never reach back into it — the
+      // player may only edit the word they're currently on.
+      if (expected === " ") S.lockedUpto = S.typedCount;
     } else {
       span.classList.add("wrong");
       span.classList.remove("correct");
