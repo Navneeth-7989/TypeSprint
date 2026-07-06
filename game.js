@@ -475,6 +475,32 @@
     return (performance.now() - S.startPerf) / 1000;
   }
 
+  /* ---------- countdown overlay (shared by solo + multi) ---------- */
+  const GO_HIDE_MS = 900; // let the GO! animation finish while the dim clears
+
+  function showCountdown() {
+    clearTimeout(S.cdHideTimer);
+    el.countdown.classList.remove("is-live");
+    el.countdown.classList.add("is-active");
+  }
+  function setCountdownStep(text, isGo) {
+    const n = el.countdownNum;
+    n.textContent = text;
+    n.classList.remove("pop", "go");
+    void n.offsetWidth;
+    n.classList.add(isGo ? "go" : "pop");
+  }
+  function goCountdown() {
+    setCountdownStep("GO!", true);
+    el.countdown.classList.add("is-live"); // fade the dim out so the track is visible the moment typing opens
+    clearTimeout(S.cdHideTimer);
+    S.cdHideTimer = setTimeout(hideCountdown, GO_HIDE_MS);
+  }
+  function hideCountdown() {
+    clearTimeout(S.cdHideTimer);
+    el.countdown.classList.remove("is-active", "is-live");
+  }
+
   /* ---------- solo start ---------- */
   function startSolo() {
     if (S.phase === "countdown" || S.phase === "racing") return;
@@ -483,26 +509,25 @@
     resetRaceState();
     buildSoloRacers();
     enterRaceScreen();
-    // classic local 3-2-1
-    el.countdown.classList.add("is-active");
-    const steps = ["3", "2", "1", "GO!"];
-    let i = 0;
-    const tick = () => {
-      const n = el.countdownNum;
-      n.textContent = steps[i];
-      n.classList.remove("pop", "go");
-      void n.offsetWidth;
-      n.classList.add(i === steps.length - 1 ? "go" : "pop");
-      i++;
-      if (i < steps.length) setTimeout(tick, 850);
-      else setTimeout(beginSolo, 800);
-    };
+    // classic local 3-2-1, anchored to an absolute clock so each digit holds
+    // exactly one second — chained timeouts drift and made "3" linger
     S.phase = "countdown";
-    tick();
+    showCountdown();
+    const goAt = performance.now() + 3000;
+    let shown = "";
+    const tick = (now) => {
+      if (S.phase !== "countdown") return; // race was quit mid-count
+      const remaining = goAt - now;
+      if (remaining <= 0) { beginSolo(); return; }
+      const num = String(Math.min(3, Math.ceil(remaining / 1000)));
+      if (num !== shown) { shown = num; setCountdownStep(num, false); }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   function beginSolo() {
-    el.countdown.classList.remove("is-active");
+    goCountdown();
     S.phase = "racing";
     S.liveAt = true;
     S.startPerf = performance.now();
@@ -536,6 +561,9 @@
         .map((p) => ({ uid: p.uid, name: p.name })),
     };
     S.raceStartAt = room.raceStartAt;
+    // Freeze the go-moment onto the local frame clock: serverNow()'s offset
+    // estimate can shift mid-countdown, which made digits hold or skip.
+    S.goPerf = performance.now() + (room.raceStartAt - net().serverNow());
     buildMultiRacers(room);
     enterRaceScreen();
     S.phase = "racing";
@@ -574,19 +602,13 @@
 
     // multiplayer synced countdown
     if (S.mode === "multi" && !S.liveAt) {
-      const remaining = -elapsed; // seconds until go
+      const remaining = (S.goPerf - now) / 1000; // seconds until go
       if (remaining > 0) {
-        el.countdown.classList.add("is-active");
-        const num = Math.min(3, Math.ceil(remaining));
-        if (el.countdownNum.textContent !== String(num)) {
-          el.countdownNum.textContent = num;
-          el.countdownNum.classList.remove("pop"); void el.countdownNum.offsetWidth;
-          el.countdownNum.classList.add("pop");
-        }
+        if (!el.countdown.classList.contains("is-active")) showCountdown();
+        const num = String(Math.min(3, Math.ceil(remaining)));
+        if (el.countdownNum.textContent !== num) setCountdownStep(num, false);
       } else {
-        el.countdownNum.textContent = "GO!";
-        el.countdownNum.classList.add("go");
-        setTimeout(() => el.countdown.classList.remove("is-active"), 500);
+        goCountdown();
         S.liveAt = true;
         el.typeStatus.textContent = "GO! Type as fast as you can.";
         el.input.focus();
@@ -881,7 +903,7 @@
     S.room = null;
     S.raceRoomId = null;
     S._lobbySig = null;
-    el.countdown.classList.remove("is-active");
+    hideCountdown();
     el.screens.results.classList.remove("is-active");
     if (el.menuYou) el.menuYou.textContent = user().name;
     showScreen("menu");

@@ -20,7 +20,7 @@
   var MAX_PLAYERS    = 5;
   var TARGET_TOTAL   = 5;
   var JOIN_WINDOW_MS = 12000; // public: gather + countdown window
-  var COUNTDOWN_MS   = 4000;  // 3-2-1-GO shown at the end of the window
+  var COUNTDOWN_MS   = 3000;  // 3-2-1-GO at the end of the window: one full second per digit
 
   var cfg = {
     makePassage: function () { return "the quick brown fox jumps over the lazy dog"; },
@@ -234,7 +234,9 @@
     var realCount = state.players.length;
     var botCount = cur.isPrivate ? 0 : Math.max(0, TARGET_TOTAL - realCount);
     var bots = cfg.makeBots(passage, botCount, seed);
-    var raceStartAt = Math.max(goLive, serverNow() + 1500); // guarantee a short countdown
+    // Late fallback lands on a whole-second boundary so a truncated
+    // countdown still shows even 2-1-GO steps instead of a ragged partial.
+    var raceStartAt = Math.max(goLive, serverNow() + 2000);
 
     cur.raceState = Object.assign({}, state, {
       status: "racing", passage: passage, bots: bots, raceStartAt: raceStartAt, serverNow: serverNow(),

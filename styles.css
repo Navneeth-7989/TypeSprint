@@ -613,6 +613,7 @@ kbd {
   display: none; align-items: center; justify-content: center;
   background: radial-gradient(circle at center, rgba(4, 6, 16, 0.66), rgba(4, 6, 16, 0.93));
   backdrop-filter: blur(4px);
+  transition: background 0.45s ease, backdrop-filter 0.45s ease;
 }
 .countdown.is-active { display: flex; }
 .countdown.is-active::before { /* expanding pulse ring behind the number */
@@ -620,8 +621,12 @@ kbd {
   width: 34vmin; height: 34vmin; border-radius: 50%;
   border: 2px solid rgba(255, 210, 63, 0.35);
   box-shadow: 0 0 60px rgba(255, 190, 80, 0.2), inset 0 0 60px rgba(255, 190, 80, 0.12);
-  animation: cdRing 0.9s var(--ease) infinite;
+  animation: cdRing 1s var(--ease) infinite; /* one pulse per digit */
 }
+/* GO! state: dim clears so the track is visible the moment typing opens,
+   while the GO text finishes its animation on top */
+.countdown.is-live { background: transparent; backdrop-filter: none; pointer-events: none; }
+.countdown.is-live::before { display: none; }
 @keyframes cdRing {
   0% { transform: scale(0.55); opacity: 0; }
   40% { opacity: 1; }
@@ -633,13 +638,15 @@ kbd {
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 12px 46px rgba(255, 170, 80, 0.45));
 }
-.countdown__num.pop { animation: cdPop 0.9s var(--ease); }
+/* duration matches the 1s digit cadence + fill:forwards, so a digit never
+   snaps back to full opacity in the gap before the next one appears */
+.countdown__num.pop { animation: cdPop 1s var(--ease) forwards; }
 @keyframes cdPop {
   0% { opacity: 0; transform: scale(2.2); }
   30% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.6); }
 }
-.countdown__num.go { animation: cdGo 0.9s var(--ease); }
+.countdown__num.go { animation: cdGo 0.9s var(--ease) forwards; }
 @keyframes cdGo {
   0% { opacity: 0; transform: scale(0.4); letter-spacing: 40px; }
   40% { opacity: 1; transform: scale(1.1); letter-spacing: 12px; }
