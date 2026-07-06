@@ -7,8 +7,9 @@
      - EVERY client starts the race on its own when that time
        arrives — no single "host" has to trigger it, so a room
        can never hang because someone left.
-     - Empty lanes are filled with DETERMINISTIC bots seeded from
-       the roomId, so all clients agree without writing bots.
+     - In PUBLIC rooms, empty lanes are filled with DETERMINISTIC
+       bots seeded from the roomId, so all clients agree without
+       writing bots. PRIVATE rooms never get bots — real players only.
    ========================================================= */
 (function () {
   "use strict";
@@ -231,8 +232,7 @@
     var seed = cur.roomId;
     var passage = cfg.makePassage(seed);
     var realCount = state.players.length;
-    var botCount = cur.isPrivate ? (realCount >= 2 ? 0 : (TARGET_TOTAL - realCount))
-                                 : Math.max(0, TARGET_TOTAL - realCount);
+    var botCount = cur.isPrivate ? 0 : Math.max(0, TARGET_TOTAL - realCount);
     var bots = cfg.makeBots(passage, botCount, seed);
     var raceStartAt = Math.max(goLive, serverNow() + 1500); // guarantee a short countdown
 

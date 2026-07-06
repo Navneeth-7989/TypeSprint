@@ -30,7 +30,8 @@
       "PowerShell(Start-Sleep -Milliseconds 1500; try { \\(Invoke-WebRequest -Uri http://localhost:5500 -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
       "PowerShell(node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\profile.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\net.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\game.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\auth.js\"; node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('C:/Users/Navneet Shahi/OneDrive/Desktop/Projects/typing game/database.rules.json','utf8'\\)\\); console.log\\('rules JSON ok'\\)\")",
       "PowerShell(firebase deploy *)",
-      "PowerShell(npx --yes firebase-tools deploy --only database)"
+      "PowerShell(npx --yes firebase-tools deploy --only database)",
+      "PowerShell(node --check \"game.js\"; node --check \"net.js\")"
     ]
   }
 }

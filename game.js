@@ -953,8 +953,10 @@
     }
   }
 
-  // The roster shown on the preview track = real players + the bots that will
-  // fill the empty lanes (mirrors the actual bot-fill logic).
+  // The roster shown on the preview track = real players + the empty lanes.
+  // Public rooms preview the bots that will fill in (mirrors the bot-fill logic);
+  // private rooms never get bots, so open lanes show a blurred placeholder until
+  // a real player joins and their name is confirmed.
   function buildLobbyRoster(room) {
     const list = room.players.map((p, i) => {
       const look = p.uid === room.me
@@ -962,12 +964,14 @@
         : PLAYER_LOOKS[(room.players.filter((x, j) => x.uid !== room.me && j < i).length) % PLAYER_LOOKS.length];
       return { name: p.name, color: look.color, isYou: p.uid === room.me };
     });
-    const fill = room.isPrivate
-      ? (room.players.length < 2 ? 5 - room.players.length : 0)
-      : Math.max(0, 5 - room.players.length);
+    const fill = Math.max(0, 5 - room.players.length);
     for (let i = 0; i < fill; i++) {
-      const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
-      list.push({ name: t.name, color: t.color, isYou: false });
+      if (room.isPrivate) {
+        list.push({ name: "Waiting…", color: "#5c6c9c", isYou: false, pending: true });
+      } else {
+        const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
+        list.push({ name: t.name, color: t.color, isYou: false });
+      }
     }
     return list;
   }
@@ -1002,11 +1006,11 @@
 
     // track preview — rebuild only when the roster changes (no flicker on the tick)
     const roster = buildLobbyRoster(room);
-    const sig = roster.map((r) => r.name + r.color + r.isYou).join("|");
+    const sig = roster.map((r) => r.name + r.color + r.isYou + (r.pending ? "~" : "")).join("|");
     if (sig !== S._lobbySig) {
       S._lobbySig = sig;
       el.lobbyTrackLanes.innerHTML = roster.map((r) => `
-        <div class="lobby-lane">
+        <div class="lobby-lane${r.pending ? " lobby-lane--pending" : ""}">
           <span class="lobby-lane__tag" style="color:${r.color}">
             <span class="lobby-lane__dot" style="background:${r.color}"></span>
             ${escapeHtml(r.name)}${r.isYou ? " <em>you</em>" : ""}
@@ -1023,7 +1027,7 @@
       el.lobbyCount.hidden = true;
       el.btnLobbyStart.hidden = !room.isHost;
       el.lobbyHint.textContent = room.isHost
-        ? "Share the code — or press Start and bots fill the rest."
+        ? "Share the code — only real players race here, no bots."
         : "The host will start the race soon.";
     } else {
       el.lobbyCount.hidden = false;
@@ -1032,9 +1036,13 @@
       el.lobbyCountNum.textContent = secs;
       el.lobbyStatus.textContent = secs > 0 ? "Get ready!" : "Go!";
       const others = room.players.length - 1;
-      el.lobbyHint.textContent = others > 0
-        ? `Racing ${others} real ${others === 1 ? "player" : "players"} + bots`
-        : "Filling the lanes with bots…";
+      el.lobbyHint.textContent = room.isPrivate
+        ? (others > 0
+            ? `Racing ${others} real ${others === 1 ? "player" : "players"} — no bots`
+            : "Solo run — no bots in private races")
+        : (others > 0
+            ? `Racing ${others} real ${others === 1 ? "player" : "players"} + bots`
+            : "Filling the lanes with bots…");
     }
   }
 
