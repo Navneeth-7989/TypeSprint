@@ -641,6 +641,19 @@
   function handleChar(ch) {
     const chars = S.chars;
     if (S.typedCount >= chars.length) return;
+    // Word lock: once there's an uncorrected mistake, let the player finish the
+    // word that holds it, but block the space into the next word (and beyond)
+    // until they backspace and fix it. `minWrong` is the earliest bad char, so
+    // the word ends at the next space at/after it (or the passage end).
+    if (S.wrongCount > 0) {
+      const nextSpace = S.text.indexOf(" ", S.minWrong);
+      const wordEnd = nextSpace === -1 ? S.text.length : nextSpace;
+      if (S.typedCount >= wordEnd) {
+        el.typeStatus.textContent = "Fix the mistake — backspace to the red letters.";
+        el.typePanel.classList.add("err");
+        return; // swallow the keystroke; no advancing into the next word
+      }
+    }
     const p = S.typedCount;
     const expected = S.text[p];
     const span = chars[p];
