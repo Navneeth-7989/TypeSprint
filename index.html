@@ -68,13 +68,25 @@
       <div class="bg__grain"></div>
     </div>
 
-    <!-- Signed-in chip -->
-    <div id="user-chip" class="user-chip" hidden>
-      <span id="user-avatar" class="user-chip__avatar" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.69-8 6v1h16v-1c0-3.31-3.58-6-8-6z"/></svg>
-      </span>
-      <span id="user-name" class="user-chip__name">Racer</span>
-      <button id="btn-signout" class="user-chip__signout">Sign out</button>
+    <!-- Signed-in chip → account dropdown (Profile / Sign out) -->
+    <div id="user-wrap" class="user-wrap" hidden>
+      <button id="user-chip" class="user-chip" aria-haspopup="true" aria-expanded="false">
+        <span id="user-avatar" class="user-chip__avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.69-8 6v1h16v-1c0-3.31-3.58-6-8-6z"/></svg>
+        </span>
+        <span id="user-name" class="user-chip__name">Racer</span>
+        <svg class="user-chip__chev" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+      </button>
+      <div id="user-menu" class="user-menu" hidden>
+        <button id="btn-profile" class="user-menu__item">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.69-8 6v1h16v-1c0-3.31-3.58-6-8-6z"/></svg>
+          <span>Profile</span>
+        </button>
+        <button id="btn-signout" class="user-menu__item user-menu__item--danger">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H11a2 2 0 0 0-2 2v4h2V5h8v14h-8v-4H9v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg>
+          <span>Sign out</span>
+        </button>
+      </div>
     </div>
 
     <!-- ============ MENU SCREEN ============ -->
@@ -314,6 +326,50 @@
     </div>
   </div>
 
+  <!-- ============ PROFILE PANEL ============ -->
+  <div id="profile-panel" class="profile-panel" hidden>
+    <div class="profile-card">
+      <button id="btn-profile-close" class="friends-card__close" aria-label="Close">×</button>
+
+      <div class="profile-hero">
+        <div class="profile-ring">
+          <span id="profile-ava" class="profile-ava" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.69-8 6v1h16v-1c0-3.31-3.58-6-8-6z"/></svg>
+          </span>
+        </div>
+        <div class="profile-who">
+          <h2 id="profile-name" class="profile-name">Racer</h2>
+          <p id="profile-handle" class="profile-handle"></p>
+        </div>
+        <span class="profile-verified">✓ Google account</span>
+      </div>
+
+      <div id="profile-records" class="profile-records"><!-- record cards injected --></div>
+
+      <div id="profile-trend" class="profile-trend" hidden>
+        <h3 class="fr-subhead">WPM trend</h3>
+        <svg id="profile-spark" class="profile-spark" viewBox="0 0 520 64" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+
+      <h3 class="fr-subhead">Recent races <span id="profile-count" class="fr-count"></span></h3>
+      <div id="profile-races" class="profile-races"><!-- race rows injected --></div>
+      <button id="btn-profile-more" class="btn btn--ghost btn--block profile-more" hidden>See more</button>
+    </div>
+  </div>
+
+  <!-- Guest taps Profile: records need a real account -->
+  <div id="profile-guest-modal" class="challenge-modal" hidden>
+    <div class="challenge-card">
+      <div class="challenge-card__icon">🔒</div>
+      <h2 class="challenge-card__title">Your records need a home</h2>
+      <p class="challenge-card__text">You're racing as a <strong>guest</strong>, so nothing is saved. Sign in with <strong>Google</strong> to create a real account and keep your race history, best WPM and accuracy records.</p>
+      <div class="challenge-card__actions">
+        <button id="btn-guest-google" class="btn btn--primary">Sign in with Google</button>
+        <button id="btn-guest-later" class="btn btn--ghost">Maybe later</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Sign-out confirmation -->
   <div id="signout-modal" class="challenge-modal" hidden>
     <div class="challenge-card">
@@ -340,5 +396,6 @@
   <script src="net.js"></script>
   <script src="game.js"></script>
   <script src="friends.js"></script>
+  <script src="profile.js"></script>
 </body>
 </html>

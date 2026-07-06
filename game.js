@@ -331,6 +331,9 @@
     el.passage.innerHTML = "";
     el.passage.appendChild(inner);
     el.passageInner = inner;
+    cancelAnimationFrame(S.caretRaf);
+    S.caretRaf = 0;
+    S.caretX = S.caretY = null; // fresh passage: snap, don't glide from the old spot
     S.caret = caret;
     S.chars = inner.querySelectorAll(".ch");
     S.currentEl = null;
@@ -341,11 +344,49 @@
     if (!S.caret) return;
     if (target) {
       S.caret.style.display = "block";
-      S.caret.style.transform = "translate(" + target.offsetLeft + "px," + target.offsetTop + "px)";
+      S.caretTX = target.offsetLeft;
+      S.caretTY = target.offsetTop;
     } else if (S.chars.length) {
       const last = S.chars[S.chars.length - 1];
-      S.caret.style.transform = "translate(" + (last.offsetLeft + last.offsetWidth) + "px," + last.offsetTop + "px)";
-    }
+      S.caretTX = last.offsetLeft + last.offsetWidth;
+      S.caretTY = last.offsetTop;
+    } else return;
+    // Solid while moving; the blink comes back once the caret sits still.
+    S.caret.style.animation = "none";
+    clearTimeout(S.caretIdleTimer);
+    S.caretIdleTimer = setTimeout(() => { if (S.caret) S.caret.style.animation = ""; }, 650);
+    if (S.caretX == null) snapCaret();
+    else startCaretChase();
+  }
+
+  function snapCaret() {
+    S.caretX = S.caretTX;
+    S.caretY = S.caretTY;
+    S.caret.style.transform = "translate(" + S.caretX + "px," + S.caretY + "px)";
+  }
+
+  // Per-frame exponential chase: most of the gap closes on the very next
+  // frame, then the caret eases into place — smooth, but it never trails the
+  // typed text the way a fixed-duration CSS transition does.
+  function startCaretChase() {
+    if (S.caretRaf) return;
+    let prev = performance.now();
+    const step = (now) => {
+      S.caretRaf = 0;
+      if (!S.caret) return;
+      const dt = Math.min(0.05, (now - prev) / 1000);
+      prev = now;
+      const k = 1 - Math.exp(-dt * 28);
+      S.caretX += (S.caretTX - S.caretX) * k;
+      S.caretY += (S.caretTY - S.caretY) * k;
+      if (Math.abs(S.caretTX - S.caretX) < 0.4 && Math.abs(S.caretTY - S.caretY) < 0.4) {
+        snapCaret();
+        return;
+      }
+      S.caret.style.transform = "translate(" + S.caretX + "px," + S.caretY + "px)";
+      S.caretRaf = requestAnimationFrame(step);
+    };
+    S.caretRaf = requestAnimationFrame(step);
   }
 
   function markCurrent() {
@@ -788,6 +829,10 @@
     el.resWpm.textContent = yourWpm;
     el.resAcc.textContent = acc + "%";
     el.resTime.textContent = yourTime.toFixed(1) + "s";
+    // Save the run to the profile history (real accounts only; guests keep nothing).
+    if (net() && net().recordRace && !user().isGuest) {
+      net().recordRace({ wpm: yourWpm, acc, time: yourTime, place: youPlace, field, mode: S.mode });
+    }
     // In a private room only the host can rematch — tell everyone else upfront.
     const privateGuest = S.mode === "multi" && S.lastRace && S.lastRace.kind === "private" && !S.lastRace.wasHost;
     el.btnAgain.textContent = privateGuest ? "Waiting for host…" : "Race again";

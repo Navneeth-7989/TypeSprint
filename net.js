@@ -532,6 +532,56 @@
     }).catch(function () {});
   }
 
+  /* ===================== RACE HISTORY / RECORDS ===================== */
+
+  // Persist a finished race + fold it into the personal-record aggregates.
+  // Guests keep nothing — records need a real (Google) account.
+  function recordRace(data) {
+    var u = me();
+    if (!db || !isReal(u)) return Promise.resolve();
+    var rec = {
+      wpm: Math.round(data.wpm || 0),
+      acc: Math.round(data.acc == null ? 100 : data.acc),
+      time: Math.round((data.time || 0) * 10) / 10,
+      place: data.place || 0,
+      field: data.field || 1,
+      mode: data.mode === "multi" ? "multi" : "solo",
+      at: TS,
+    };
+    return db.ref("raceHistory/" + u.uid).push(rec).then(function () {
+      return db.ref("stats/" + u.uid).transaction(function (s) {
+        s = s || {};
+        s.races = (s.races || 0) + 1;
+        s.wins = (s.wins || 0) + (rec.place === 1 ? 1 : 0);
+        if (rec.wpm > (s.bestWpm || 0)) s.bestWpm = rec.wpm;
+        if (rec.acc > (s.bestAcc || 0)) s.bestAcc = rec.acc;
+        return s;
+      });
+    }).catch(function () {});
+  }
+
+  function getStats() {
+    var u = me();
+    if (!db || !isReal(u)) return Promise.resolve(null);
+    return db.ref("stats/" + u.uid).once("value").then(function (s) { return s.val(); });
+  }
+
+  // Newest-first page of race history. Pass the previous page's oldest key as
+  // `beforeKey` to fetch the next (older) page — push keys sort chronologically,
+  // so orderByKey + limitToLast walks the history backwards.
+  function getRaceHistory(limit, beforeKey) {
+    var u = me();
+    if (!db || !isReal(u)) return Promise.resolve([]);
+    var q = db.ref("raceHistory/" + u.uid).orderByKey();
+    q = beforeKey ? q.endAt(beforeKey).limitToLast(limit + 1) : q.limitToLast(limit);
+    return q.once("value").then(function (snap) {
+      var list = [];
+      snap.forEach(function (c) { list.push(Object.assign({ key: c.key }, c.val())); });
+      if (beforeKey) list = list.filter(function (r) { return r.key !== beforeKey; });
+      return list.reverse();
+    });
+  }
+
   // Kick off profile + presence as soon as we know who the user is.
   if (window.SPRINT_USER) bootstrapProfile();
   else document.addEventListener("sprint:auth", bootstrapProfile, { once: true });
@@ -564,6 +614,10 @@
     sendChallenge: sendChallenge,
     clearChallenge: clearChallenge,
     declineChallenge: declineChallenge,
+    // records
+    recordRace: recordRace,
+    getStats: getStats,
+    getRaceHistory: getRaceHistory,
     get roomId() { return cur ? cur.roomId : null; },
   };
 

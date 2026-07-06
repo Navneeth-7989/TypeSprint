@@ -24,7 +24,13 @@
       "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
       "Read(//c/Program Files/Google/Chrome/Application/**)",
       "Bash(cygpath *)",
-      "Bash('C:/Program Files \\(x86\\)/Microsoft/Edge/Application/msedge.exe' --headless --disable-gpu --hide-scrollbars --window-size=1600,900 --virtual-time-budget=4500 --screenshot=/tmp/shots/race2.png http://127.0.0.1:8321/_shot.html?s=race)"
+      "Bash('C:/Program Files \\(x86\\)/Microsoft/Edge/Application/msedge.exe' --headless --disable-gpu --hide-scrollbars --window-size=1600,900 --virtual-time-budget=4500 --screenshot=/tmp/shots/race2.png http://127.0.0.1:8321/_shot.html?s=race)",
+      "PowerShell(node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\game.js\")",
+      "PowerShell(python -m http.server 5500)",
+      "PowerShell(Start-Sleep -Milliseconds 1500; try { \\(Invoke-WebRequest -Uri http://localhost:5500 -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
+      "PowerShell(node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\profile.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\net.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\game.js\"; node --check \"C:\\\\Users\\\\Navneet Shahi\\\\OneDrive\\\\Desktop\\\\Projects\\\\typing game\\\\auth.js\"; node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('C:/Users/Navneet Shahi/OneDrive/Desktop/Projects/typing game/database.rules.json','utf8'\\)\\); console.log\\('rules JSON ok'\\)\")",
+      "PowerShell(firebase deploy *)",
+      "PowerShell(npx --yes firebase-tools deploy --only database)"
     ]
   }
 }

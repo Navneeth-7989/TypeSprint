@@ -81,6 +81,20 @@
           ".write": "auth != null && (auth.uid === $uid || (newData.exists() ? newData.child('fromUid').val() === auth.uid : data.child('fromUid').val() === auth.uid))"
         }
       }
+    },
+
+    "stats": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider != 'anonymous'"
+      }
+    },
+
+    "raceHistory": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && auth.token.firebase.sign_in_provider != 'anonymous'"
+      }
     }
   }
 }

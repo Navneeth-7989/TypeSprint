@@ -16,7 +16,7 @@
   var actions   = $("#auth-actions");
   var errorEl   = $("#auth-error");
 
-  var chip       = $("#user-chip");
+  var chip       = $("#user-wrap"); // chip + dropdown wrapper (profile.js drives the menu)
   var chipName   = $("#user-name");
   var chipAvatar = $("#user-avatar");
 
