@@ -147,7 +147,6 @@
     },
     // menu
     btnRaceNow: $("#btn-race-now"),
-    btnSolo: $("#btn-solo"),
     btnFriends: $("#btn-friends"),
     menuYou: $("#menu-you-name"),
     // friends panel
@@ -427,15 +426,6 @@
     };
   }
 
-  function buildSoloRacers() {
-    S.text = makePassage();
-    const bots = makeBots(S.text, 4);
-    S.racers = [
-      youRacer(),
-      ...bots.map((b) => ({ ...b, type: "bot", progress: 0, finishTime: null })),
-    ];
-  }
-
   function buildMultiRacers(room) {
     S.text = room.passage;
     const others = room.players.filter((p) => p.uid !== room.me);
@@ -499,43 +489,6 @@
   function hideCountdown() {
     clearTimeout(S.cdHideTimer);
     el.countdown.classList.remove("is-active", "is-live");
-  }
-
-  /* ---------- solo start ---------- */
-  function startSolo() {
-    if (S.phase === "countdown" || S.phase === "racing") return;
-    S.mode = "solo";
-    S.lastRace = null;
-    resetRaceState();
-    buildSoloRacers();
-    enterRaceScreen();
-    // classic local 3-2-1, anchored to an absolute clock so each digit holds
-    // exactly one second — chained timeouts drift and made "3" linger
-    S.phase = "countdown";
-    showCountdown();
-    const goAt = performance.now() + 3000;
-    let shown = "";
-    const tick = (now) => {
-      if (S.phase !== "countdown") return; // race was quit mid-count
-      const remaining = goAt - now;
-      if (remaining <= 0) { beginSolo(); return; }
-      const num = String(Math.min(3, Math.ceil(remaining / 1000)));
-      if (num !== shown) { shown = num; setCountdownStep(num, false); }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
-  function beginSolo() {
-    goCountdown();
-    S.phase = "racing";
-    S.liveAt = true;
-    S.startPerf = performance.now();
-    S.lastFrame = S.startPerf;
-    el.typeStatus.textContent = "GO! Type as fast as you can.";
-    el.input.focus();
-    document.querySelectorAll(".runner-unit").forEach((u) => u.classList.add("is-running"));
-    S.rafId = requestAnimationFrame(loop);
   }
 
   /* ---------- multiplayer start ---------- */
@@ -923,13 +876,12 @@
   }
 
   // "Race again" — replay the SAME kind of race we just finished:
-  //   solo               → local solo run
   //   1v1 friend match   → re-challenge that friend (popup on their screen)
   //   private room       → rematch invite to everyone who was in the room
   //   public quick match → a fresh random quick match
   function raceAgain() {
     const hideResults = () => el.screens.results.classList.remove("is-active");
-    if (S.mode !== "multi") { hideResults(); startSolo(); return; }
+    if (S.mode !== "multi") { hideResults(); goMenu(); return; }
     const lr = S.lastRace;
     if (lr && (lr.kind === "challenge" || lr.kind === "private")) {
       // Private room: only the host may launch the rematch, so there's exactly
@@ -1266,7 +1218,7 @@
   }
 
   function disableMenu(v) {
-    [el.btnRaceNow, el.btnSolo, el.btnFriends].forEach((b) => b && (b.disabled = v));
+    [el.btnRaceNow, el.btnFriends].forEach((b) => b && (b.disabled = v));
     if (el.btnRaceNow) el.btnRaceNow.querySelector("span") && (el.btnRaceNow.querySelector("span").textContent = v ? "Finding a race…" : "Race Now");
   }
 
@@ -1274,7 +1226,6 @@
   function init() {
     // menu actions
     el.btnRaceNow?.addEventListener("click", doRaceNow);
-    el.btnSolo?.addEventListener("click", startSolo);
     el.btnFriends?.addEventListener("click", openFriends);
 
     // friends panel

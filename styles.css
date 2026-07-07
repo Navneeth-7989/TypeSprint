@@ -1624,3 +1624,278 @@ kbd {
     transition-duration: 0.001s !important;
   }
 }
+
+/* =========================================================
+   THEME TOGGLE  ·  the iOS-style day/night switch (top-left)
+   Adapts to both themes via CSS variables. The thumb slides
+   right and the icon swaps (moon→sun) purely on [data-theme],
+   so the initial paint is always correct — no flash, no JS.
+   ========================================================= */
+.theme-toggle {
+  position: fixed; top: 15px; left: 18px; z-index: 95;
+  width: 60px; height: 30px; padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(12px) saturate(130%);
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(6, 10, 30, 0.28), var(--glass-hi);
+  transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), background 0.35s var(--ease);
+}
+.theme-toggle:hover { border-color: rgba(124, 243, 255, 0.45); }
+[data-theme="light"] .theme-toggle:hover { border-color: rgba(13, 148, 189, 0.5); }
+.theme-toggle__track { position: absolute; inset: 0; display: block; }
+.theme-toggle__thumb {
+  position: absolute; top: 50%; left: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  /* DARK (default): a moon on a deep-navy disc, parked left */
+  background: linear-gradient(180deg, #33407a, #1c2450);
+  color: #cfe0ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateY(-50%);
+  transition: transform 0.34s var(--spring), background 0.35s var(--ease), color 0.35s var(--ease);
+}
+[data-theme="light"] .theme-toggle__thumb {
+  /* LIGHT: a sun on a warm-gold disc, slid right */
+  transform: translate(30px, -50%);
+  background: linear-gradient(180deg, #ffd985, #ff9a3d);
+  color: #3a2200;
+  box-shadow: 0 2px 8px rgba(160, 110, 20, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.theme-toggle__icon { display: none; }
+.theme-toggle .icon-moon { display: block; }              /* dark shows the moon */
+[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+[data-theme="light"] .theme-toggle .icon-sun { display: block; }  /* light shows the sun */
+
+/* Smooth the biggest surfaces when flipping themes (decorative layers only,
+   so we never fight a component's own hover/focus transitions). */
+html, body { transition: background-color 0.4s var(--ease), color 0.4s var(--ease); }
+.bg__sky, .bg__sun, .bg__stadium, .auth-gate, .auth-gate::after {
+  transition: background 0.45s var(--ease), opacity 0.45s var(--ease), filter 0.45s var(--ease);
+}
+
+/* =========================================================
+   LIGHT THEME  ·  "Stadium Daylight"
+   A bright, airy counterpart to the dark "Night Circuit":
+   a daytime sky, a soft warm sun, white glass panels and
+   deepened accents so cyan/gold still read on white.
+   Everything hangs off the same custom properties, so most
+   panels (results, lobby, friends, profile, modals) recolor
+   automatically; below we hand-tune the surfaces that carry
+   hardcoded dark values.
+   ========================================================= */
+[data-theme="light"] {
+  /* palette */
+  --bg-0: #e8eef8;
+  --bg-1: #d7e2f2;
+  --ink: #16203a;
+  --muted: #566285;
+  --line: rgba(38, 58, 120, 0.14);
+  --line-strong: rgba(38, 58, 120, 0.24);
+  --panel: rgba(255, 255, 255, 0.74);
+  --panel-2: rgba(238, 244, 253, 0.72);
+
+  /* accents deepened for contrast on white */
+  --accent:   #0d94bd;
+  --accent-2: #2b86d0;
+  --violet:   #7856ec;
+
+  /* glass recipe reworked for a light backdrop */
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --card-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(235, 241, 251, 0.9));
+  --border-grad: linear-gradient(135deg, rgba(13, 148, 189, 0.4), rgba(120, 86, 236, 0.22) 38%, rgba(38, 58, 120, 0.12) 60%, rgba(255, 150, 60, 0.32));
+  --shadow-lg: 0 26px 70px rgba(70, 100, 165, 0.22);
+}
+
+/* selection: a soft daylight-cyan wash instead of neon */
+[data-theme="light"] ::selection { background: rgba(13, 148, 189, 0.22); color: var(--ink); }
+
+/* ---- ambient background → daytime ---- */
+[data-theme="light"] .bg__sky {
+  background:
+    radial-gradient(130% 90% at 80% -12%, rgba(255, 236, 188, 0.75) 0%, transparent 52%),
+    radial-gradient(90% 70% at 8% 4%, rgba(176, 210, 255, 0.6) 0%, transparent 55%),
+    linear-gradient(180deg, #bcd9ff 0%, #dcebfb 46%, #eef4fc 100%);
+}
+[data-theme="light"] .bg__sky::before { opacity: 0; animation: none; }  /* no stars by day */
+[data-theme="light"] .bg__sun {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 242, 205, 0.92) 0%, rgba(255, 224, 150, 0.5) 34%, transparent 62%);
+  filter: blur(32px) saturate(120%);
+  opacity: 0.9;
+}
+[data-theme="light"] .bg__stadium {
+  background-image:
+    repeating-linear-gradient(90deg, rgba(40, 90, 165, 0.12) 0 2px, transparent 2px 90px),
+    repeating-linear-gradient(0deg, rgba(40, 90, 165, 0.10) 0 2px, transparent 2px 74px),
+    linear-gradient(180deg, rgba(200, 222, 255, 0.5), rgba(232, 241, 252, 0.15));
+  opacity: 0.55;
+}
+[data-theme="light"] .bg__cloud {
+  background: linear-gradient(90deg, transparent, rgba(13, 148, 189, 0.5) 45%, rgba(90, 120, 210, 0.62) 50%, rgba(120, 86, 236, 0.4) 56%, transparent);
+}
+[data-theme="light"] .bg__grain { opacity: 0.03; }
+
+/* ---- auth gate → daytime (it carries its own hardcoded sky) ---- */
+[data-theme="light"] .auth-gate {
+  background:
+    radial-gradient(130% 90% at 80% -12%, rgba(255, 236, 188, 0.75) 0%, transparent 52%),
+    radial-gradient(90% 70% at 8% 4%, rgba(176, 210, 255, 0.55) 0%, transparent 55%),
+    linear-gradient(180deg, #bcd9ff 0%, #dcebfb 46%, #eef4fc 100%);
+}
+[data-theme="light"] .auth-gate::after {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 242, 205, 0.88) 0%, rgba(255, 224, 150, 0.45) 36%, transparent 62%);
+  filter: blur(34px);
+}
+
+/* ---- text gradients that anchored on #fff (invisible on white) ---- */
+[data-theme="light"] .menu__title {
+  background: linear-gradient(115deg, #23214a 0%, #cf8712 24%, #e8641c 42%, #6f42d8 62%, #0d8fb8 80%, #23214a 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 12px 34px rgba(255, 150, 60, 0.22));
+}
+[data-theme="light"] .hud__stat--pos .hud__value {
+  background: linear-gradient(120deg, #8a5a00, #d9920a 50%, #e8641c);
+  -webkit-background-clip: text; background-clip: text;
+}
+
+/* ---- menu badge → crisper on white ---- */
+[data-theme="light"] .menu__badge {
+  color: #0b7ea3;
+  border-color: rgba(13, 148, 189, 0.35);
+  background: linear-gradient(180deg, rgba(13, 148, 189, 0.1), rgba(13, 148, 189, 0.03));
+  box-shadow: 0 4px 18px rgba(13, 148, 189, 0.14), var(--glass-hi);
+}
+
+/* ---- buttons ---- */
+[data-theme="light"] .btn--ghost {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(38, 58, 120, 0.06), rgba(38, 58, 120, 0.02));
+  border-color: var(--line-strong);
+}
+[data-theme="light"] .btn--ghost:hover {
+  border-color: rgba(13, 148, 189, 0.5);
+  background: linear-gradient(180deg, rgba(13, 148, 189, 0.12), rgba(38, 58, 120, 0.04));
+}
+[data-theme="light"] .btn--google {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 30px rgba(70, 100, 165, 0.18), var(--glass-hi);
+}
+
+/* ---- HUD glow softened ---- */
+[data-theme="light"] .hud__value { text-shadow: 0 0 20px rgba(13, 148, 189, 0.12); }
+
+/* ---- race track → a bright stadium surface ---- */
+[data-theme="light"] .track {
+  background:
+    radial-gradient(120% 90% at 50% -30%, rgba(13, 148, 189, 0.1), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 32%),
+    linear-gradient(90deg, #dfe7f6 0%, #d2ddf0 55%, #e3eaf8 100%);
+  box-shadow: var(--shadow-lg), inset 0 0 60px rgba(150, 172, 214, 0.28), var(--glass-hi);
+}
+[data-theme="light"] .track::before {
+  background:
+    repeating-linear-gradient(90deg, rgba(40, 60, 110, 0.05) 0 2px, transparent 2px 5px),
+    radial-gradient(130% 130% at 0% 50%, rgba(255, 210, 120, 0.16), transparent 52%),
+    radial-gradient(110% 130% at 100% 50%, rgba(120, 86, 236, 0.08), transparent 55%);
+}
+[data-theme="light"] .lane { border-bottom-color: rgba(40, 60, 110, 0.14); }
+[data-theme="light"] .track__distance-marks {
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), rgba(40, 60, 110, 0.12) calc(10% - 2px) 10%);
+}
+[data-theme="light"] .lane__tag {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(240, 245, 253, 0.8));
+  border-color: var(--line);
+  box-shadow: 0 4px 14px rgba(80, 110, 170, 0.18), var(--glass-hi);
+}
+
+/* ---- the passage text (the core surface you read while typing) ---- */
+[data-theme="light"] .passage .ch { color: rgba(30, 41, 70, 0.32); }
+[data-theme="light"] .passage .ch.current {
+  color: rgba(30, 41, 70, 0.72); text-shadow: 0 0 12px rgba(13, 148, 189, 0.22);
+}
+[data-theme="light"] .passage .ch.correct { color: var(--ink); text-shadow: none; }
+[data-theme="light"] .passage .ch.wrong { color: #b3122e; }
+[data-theme="light"] .passage .ch.locked { color: #b3122e; }
+
+/* ---- signed-in account chip (top-right) ---- */
+[data-theme="light"] .user-chip {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(238, 244, 253, 0.8));
+}
+[data-theme="light"] .user-menu__item--danger:hover { color: #b3122e; background: rgba(255, 93, 115, 0.12); }
+
+/* ---- RESULTS card (post-race analysis) — carries its own dark gradient ---- */
+[data-theme="light"] .results {
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(13, 148, 189, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(233, 240, 251, 0.97));
+}
+[data-theme="light"] .results.win {
+  box-shadow: 0 40px 120px rgba(70, 100, 165, 0.25), 0 0 90px rgba(255, 190, 80, 0.18), var(--glass-hi);
+  outline-color: rgba(230, 170, 20, 0.45);
+}
+/* faint white overlays vanish on a light card — retint them slate */
+[data-theme="light"] .board-row,
+[data-theme="light"] .results__stat {
+  background: linear-gradient(180deg, rgba(38, 58, 120, 0.055), rgba(38, 58, 120, 0.02));
+}
+[data-theme="light"] .results__place.win {
+  background: linear-gradient(120deg, #b8791a, var(--you), var(--you-2));
+  -webkit-background-clip: text; background-clip: text;
+}
+
+/* ---- LOBBY card (the 12→0 pre-race countdown) — also hardcoded dark ---- */
+[data-theme="light"] .lobby {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(13, 148, 189, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(233, 240, 251, 0.96));
+  outline-color: rgba(38, 58, 120, 0.16);
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(120, 160, 220, 0.12), var(--glass-hi);
+}
+[data-theme="light"] .lobby__headline {
+  background: linear-gradient(115deg, #23214a 0%, #cf8712 35%, #e8641c 65%, #cf8712 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text;
+}
+[data-theme="light"] .lobby__track {
+  background: linear-gradient(180deg, rgba(224, 232, 246, 0.9), rgba(236, 242, 252, 0.7));
+  border-color: rgba(38, 58, 120, 0.14);
+  box-shadow: inset 0 2px 20px rgba(120, 150, 200, 0.18);
+}
+[data-theme="light"] .lobby__finish { border-left-color: rgba(40, 60, 110, 0.28); }
+[data-theme="light"] .lobby-lane__strip {
+  background: linear-gradient(180deg, rgba(38, 58, 120, 0.05), rgba(38, 58, 120, 0.02));
+  border-color: rgba(38, 58, 120, 0.1);
+}
+[data-theme="light"] .lobby-lane__strip::before {
+  background: repeating-linear-gradient(90deg, rgba(40, 60, 110, 0.08) 0 16px, transparent 16px 30px);
+}
+[data-theme="light"] .lobby__count-num {
+  background: linear-gradient(120deg, #0b7ea3, #0d94bd);
+  -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(0 0 16px rgba(13, 148, 189, 0.25));
+}
+
+/* ---- floating toast + challenge spinner ---- */
+[data-theme="light"] .menu-toast {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(235, 241, 251, 0.96));
+}
+[data-theme="light"] .challenge-wait__spinner {
+  border-color: rgba(38, 58, 120, 0.15);
+  border-top-color: var(--accent);
+}
+
+/* ---- text inputs (sign-in username, join-code, friend search) ---- */
+[data-theme="light"] .guest-input {
+  background: linear-gradient(180deg, rgba(38, 58, 120, 0.05), rgba(38, 58, 120, 0.02));
+  box-shadow: inset 0 2px 8px rgba(80, 110, 170, 0.14);
+}
+[data-theme="light"] .guest-input:focus {
+  background: linear-gradient(180deg, rgba(13, 148, 189, 0.08), rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 2px 8px rgba(80, 110, 170, 0.12), 0 0 0 3px rgba(13, 148, 189, 0.14), 0 0 24px rgba(13, 148, 189, 0.1);
+}

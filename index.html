@@ -4,6 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SPRINT · Live Typing Race</title>
+  <!-- Apply the saved theme BEFORE paint so there's no dark→light flash on load -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("sprint_theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <meta name="description" content="Race real people in a live typing sprint. Sign in with Google or play as a guest, match instantly, or challenge friends in a private room." />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -12,6 +23,16 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- Light / dark theme toggle (always visible, top-left) -->
+  <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle light and dark mode" title="Toggle theme">
+    <span class="theme-toggle__track" aria-hidden="true">
+      <span class="theme-toggle__thumb">
+        <svg class="theme-toggle__icon icon-sun" viewBox="0 0 24 24" width="15" height="15"><path fill="currentColor" d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 3a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zm0-20a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V1a1 1 0 0 1 1-1zm10 11a1 1 0 0 1 1 1 1 1 0 0 1-1 1h-1a1 1 0 1 1 0-2h1zM3 12a1 1 0 0 1-1 1H1a1 1 0 1 1 0-2h1a1 1 0 0 1 1 1zm16.07 7.07a1 1 0 0 1 0 1.41 1 1 0 0 1-1.41 0l-.71-.71a1 1 0 0 1 1.41-1.41l.71.71zM6.34 5.34A1 1 0 0 1 4.93 6.75l-.71-.71a1 1 0 0 1 1.41-1.41l.71.71zm12.02-1.42a1 1 0 0 1 1.41 1.41l-.71.71a1 1 0 1 1-1.41-1.41l.71-.71zM6.05 17.66a1 1 0 0 1 1.41 1.41l-.71.71a1 1 0 0 1-1.41-1.41l.71-.71z"/></svg>
+        <svg class="theme-toggle__icon icon-moon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </span>
+    </span>
+  </button>
+
   <!-- Desktop-only gate -->
   <div id="mobile-gate" class="mobile-gate">
     <div class="mobile-gate__card">
@@ -104,7 +125,6 @@
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
           </button>
           <div class="menu__actions-row">
-            <button id="btn-solo" class="btn btn--ghost">Practice vs Bots</button>
             <button id="btn-friends" class="btn btn--ghost">Friends<span id="friends-badge" class="friends-badge" hidden></span></button>
           </div>
         </div>
@@ -399,6 +419,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
   <!-- App scripts (order matters: init → auth → net → game) -->
+  <script src="theme.js"></script>
   <script src="firebase-init.js"></script>
   <script src="auth.js"></script>
   <script src="net.js"></script>
