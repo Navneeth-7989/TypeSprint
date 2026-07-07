@@ -1209,7 +1209,7 @@
   };
 
   async function doRaceNow() {
-    if (!net()) return toast("Still connecting…");
+    if (!net() || !window.SPRINT_USER) return toast("Still connecting…");
     disableMenu(true);
     try {
       await net().quickMatch(roomCbs);
@@ -1223,7 +1223,7 @@
   }
 
   async function doCreatePrivate() {
-    if (!net()) return friendsError("Still connecting…");
+    if (!net() || !window.SPRINT_USER) return friendsError("Still connecting…");
     try {
       const { roomId } = await net().createPrivate(roomCbs);
       S.inviteRoomId = roomId;
@@ -1235,6 +1235,7 @@
   }
 
   async function doJoinCode() {
+    if (!net() || !window.SPRINT_USER) return friendsError("Still connecting…");
     const code = (el.joinCode.value || "").trim();
     if (code.length < 4) return friendsError("Enter the 5-letter code.");
     try {

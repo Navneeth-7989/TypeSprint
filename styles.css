@@ -920,6 +920,23 @@ kbd {
    Signed-in chip + account dropdown (Profile / Sign out)
    ========================================================= */
 .user-wrap { position: fixed; top: 16px; right: 18px; z-index: 40; }
+
+/* Guests: "Sign in" pill (top-right). Shown only while playing as a guest. */
+.signin-top {
+  position: fixed; top: 16px; right: 18px; z-index: 40;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 9px 16px 9px 12px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.2px;
+  color: #0b1020;
+  background: linear-gradient(135deg, var(--you, #ffd23f), var(--you-2, #ffb020));
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35), var(--glass-hi);
+  transition: transform 0.15s var(--ease), box-shadow 0.2s var(--ease), filter 0.2s;
+}
+.signin-top:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), var(--glass-hi); filter: brightness(1.04); }
+.signin-top:active { transform: translateY(0); }
+.signin-top svg { flex: none; background: #fff; border-radius: 4px; padding: 2px; box-sizing: content-box; }
+
 .user-chip {
   display: flex; align-items: center; gap: 10px;
   background: linear-gradient(180deg, rgba(20, 26, 54, 0.8), rgba(12, 16, 36, 0.75));

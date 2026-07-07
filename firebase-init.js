@@ -32,6 +32,9 @@
   }
 
   function showFatal(msg) {
+    // The sign-in modal is hidden by default — reveal it so the error shows.
+    var gate = document.getElementById("auth-gate");
+    if (gate) gate.classList.remove("is-hidden");
     var err = document.getElementById("auth-error");
     if (err) { err.textContent = msg; err.hidden = false; }
   }
