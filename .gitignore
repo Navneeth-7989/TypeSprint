@@ -12,3 +12,19 @@ node_modules/
 
 # Firebase local cache
 .firebase/
+
+# Secrets — never commit these
+# NOTE: the Firebase *web* apiKey in firebase-init.js is public by design and is
+# NOT a secret. The dangerous file is a service-account/Admin-SDK private key.
+.env
+.env.*
+*.local.env
+serviceAccount*.json
+service-account*.json
+*-serviceaccount.json
+*firebase-adminsdk*.json
+*.pem
+*.p12
+*.key
+credentials.json
+secrets.json
