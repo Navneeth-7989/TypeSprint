@@ -21,6 +21,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="arcade.css" />
 </head>
 <body>
   <!-- Light / dark theme toggle (always visible, top-left) -->
@@ -127,6 +128,10 @@
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
           </button>
           <div class="menu__actions-row">
+            <button id="btn-play-games" class="btn btn--ghost btn--games">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M7 6h10a5 5 0 0 1 5 5v.6a4.4 4.4 0 0 1-8 2.5H10a4.4 4.4 0 0 1-8-2.5V11a5 5 0 0 1 5-5Zm0 3a1 1 0 0 0-1 1v1H5a1 1 0 1 0 0 2h1v1a1 1 0 1 0 2 0v-1h1a1 1 0 1 0 0-2H8v-1a1 1 0 0 0-1-1Zm9.5.5a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Zm-2 3a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/></svg>
+              <span>Play Games</span>
+            </button>
             <button id="btn-friends" class="btn btn--ghost">Friends<span id="friends-badge" class="friends-badge" hidden></span></button>
           </div>
         </div>
@@ -321,6 +326,56 @@
     </section>
   </div>
 
+  <!-- ============ ARCADE HUB (list of typing games) ============ -->
+  <div id="arcade-hub" class="arcade-hub">
+    <div class="arcade-card">
+      <button id="btn-arcade-close" class="friends-card__close" type="button" aria-label="Close">×</button>
+      <div class="menu__badge">SPRINT ARCADE · SOLO TYPING GAMES</div>
+      <h2 class="arcade-card__title">Pick your game</h2>
+      <p class="arcade-card__sub">Six ways to sharpen your fingers. Every one is pure keyboard — no mouse, no mercy. Beat your own best.</p>
+      <div id="arcade-grid" class="arcade-grid"><!-- game cards injected by arcade.js --></div>
+    </div>
+  </div>
+
+  <!-- ============ GAME STAGE (full-screen play surface) ============ -->
+  <div id="game-stage" class="game-stage" aria-hidden="true">
+    <canvas id="game-canvas" class="game-canvas"></canvas>
+
+    <header class="game-top">
+      <button id="btn-game-exit" class="game-top__exit" type="button" aria-label="Back to arcade">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M15.4 7.4 14 6l-6 6 6 6 1.4-1.4L10.8 12z"/></svg>
+        <span>Arcade</span>
+      </button>
+      <div id="game-title" class="game-top__title">Game</div>
+      <div id="game-stats" class="game-top__stats"><!-- stat chips injected --></div>
+    </header>
+
+    <div id="game-layer" class="game-layer"><!-- DOM-based games render here --></div>
+
+    <div id="game-banner" class="game-banner" hidden><span id="game-banner-text"></span></div>
+
+    <input id="game-input" class="hidden-input" autocomplete="off" autocorrect="off"
+           autocapitalize="off" spellcheck="false" aria-label="Type here" />
+
+    <!-- countdown before a game begins -->
+    <div id="game-countdown" class="game-countdown" hidden><span id="game-countdown-num">3</span></div>
+
+    <!-- game over card -->
+    <div id="game-over" class="game-over" hidden>
+      <div class="game-over__card">
+        <div id="game-over-badge" class="game-over__badge">GAME OVER</div>
+        <h2 id="game-over-title" class="game-over__title">Nice run!</h2>
+        <div id="game-over-stats" class="game-over__stats"><!-- final stats injected --></div>
+        <p id="game-over-best" class="game-over__best" hidden></p>
+        <div class="game-over__actions">
+          <button id="btn-game-again" class="btn btn--primary">Play again</button>
+          <button id="btn-game-arcade" class="btn btn--ghost">Back to arcade</button>
+        </div>
+        <p class="game-over__hint">Press <kbd>Enter</kbd> to play again · <kbd>Esc</kbd> for arcade</p>
+      </div>
+    </div>
+  </div>
+
   <div class="footer-credit">Built for desktop · live keyboard racing</div>
 
   <!-- Incoming 1v1 challenge -->
@@ -428,5 +483,6 @@
   <script src="game.js"></script>
   <script src="friends.js"></script>
   <script src="profile.js"></script>
+  <script src="arcade.js"></script>
 </body>
 </html>

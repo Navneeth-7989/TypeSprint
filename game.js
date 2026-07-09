@@ -1307,6 +1307,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       if (!window.SPRINT_USER) return; // still on the sign-in screen — let the auth form handle Enter
+      if (document.body.classList.contains("arcade-open")) return; // arcade owns the keyboard
       if (S.phase === "menu" && !el.friends.classList.contains("is-open")) {
         e.preventDefault();
         doRaceNow();

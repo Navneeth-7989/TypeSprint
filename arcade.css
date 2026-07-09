@@ -1,0 +1,204 @@
+/* =========================================================
+   SPRINT · Arcade — styles for the games hub + game stage.
+   Rides on the same tokens as styles.css (Night Circuit).
+   ========================================================= */
+
+/* menu "Play Games" button gets a subtle arcade tint */
+.btn--games svg { color: var(--accent); transition: transform 0.25s var(--spring); }
+.btn--games:hover svg { transform: translateY(-1px) scale(1.08); }
+
+/* ============ HUB (game picker modal) ============ */
+.arcade-hub {
+  position: fixed; inset: 0; z-index: 60;
+  display: none; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(3, 5, 13, 0.76); backdrop-filter: blur(10px);
+}
+.arcade-hub.is-open { display: flex; }
+.arcade-hub.is-open .arcade-card { animation: dialogPop 0.42s var(--spring) both; }
+
+.arcade-card {
+  position: relative; overflow: hidden;
+  width: min(880px, 95vw); max-height: 92vh; overflow-y: auto;
+  text-align: center;
+  background:
+    radial-gradient(56% 40% at 0% 0%, rgba(124, 243, 255, 0.10), transparent 62%) padding-box,
+    radial-gradient(56% 44% at 100% 100%, rgba(167, 139, 250, 0.10), transparent 62%) padding-box,
+    var(--card-grad) padding-box,
+    var(--border-grad) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg), 0 0 70px rgba(124, 243, 255, 0.06), var(--glass-hi);
+  padding: 30px 30px 34px;
+}
+.arcade-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent) 40%, var(--violet) 60%, transparent);
+  background-size: 240% 100%; opacity: 0.7; animation: edgeFlow 4.5s linear infinite;
+}
+.arcade-card__title { font-size: 26px; font-weight: 800; margin: 12px 0 6px; }
+.arcade-card__sub { color: var(--muted); font-size: 14px; line-height: 1.55; max-width: 560px; margin: 0 auto 22px; }
+
+.arcade-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; text-align: left;
+}
+@media (max-width: 640px) { .arcade-grid { grid-template-columns: 1fr; } }
+
+.arcade-tile {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 16px; border-radius: 18px; cursor: pointer;
+  text-align: left; color: var(--ink); font-family: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  box-shadow: var(--glass-hi);
+  transition: transform 0.24s var(--spring), border-color 0.24s, box-shadow 0.24s, background 0.24s;
+  animation: rise 0.5s var(--ease) both;
+}
+.arcade-tile::after { /* colored glow wash keyed to the game */
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0;
+  background: radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--tile) 22%, transparent), transparent 60%);
+  transition: opacity 0.28s var(--ease);
+}
+.arcade-tile:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tile) 55%, transparent);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4), 0 0 26px color-mix(in srgb, var(--tile) 22%, transparent), var(--glass-hi);
+}
+.arcade-tile:hover::after { opacity: 1; }
+.arcade-tile:active { transform: translateY(-1px) scale(0.99); }
+
+.arcade-tile__icon {
+  flex: none; width: 54px; height: 54px; border-radius: 15px;
+  display: grid; place-items: center; font-size: 28px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tile) 28%, transparent), color-mix(in srgb, var(--tile) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--tile) 45%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.3s var(--spring);
+}
+.arcade-tile:hover .arcade-tile__icon { transform: scale(1.08) rotate(-4deg); }
+.arcade-tile__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.arcade-tile__name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
+.arcade-tile__tag { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.arcade-tile__best {
+  font-size: 11.5px; font-weight: 700; margin-top: 4px;
+  color: color-mix(in srgb, var(--tile) 75%, var(--ink));
+}
+.arcade-tile__go {
+  flex: none; align-self: center; font-size: 13px; font-weight: 800;
+  color: var(--tile); opacity: 0; transform: translateX(-6px);
+  transition: opacity 0.24s, transform 0.24s var(--spring);
+}
+.arcade-tile:hover .arcade-tile__go { opacity: 1; transform: translateX(0); }
+
+/* ============ GAME STAGE ============ */
+.game-stage {
+  position: fixed; inset: 0; z-index: 70; display: none;
+  --game-accent: #7cf3ff;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(46, 62, 122, 0.55), transparent 60%),
+    linear-gradient(180deg, #060a1c 0%, #04050d 100%);
+}
+.game-stage.is-open { display: block; animation: dialogFade 0.3s ease both; }
+
+.game-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.game-layer { position: absolute; inset: 0; pointer-events: none; }
+
+.game-top {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 22px;
+}
+.game-top__exit {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 15px; border-radius: 12px; cursor: pointer;
+  font-family: inherit; font-weight: 700; font-size: 14px; color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line); box-shadow: var(--glass-hi);
+  transition: transform 0.2s var(--spring), border-color 0.2s, background 0.2s;
+}
+.game-top__exit:hover { transform: translateX(-2px); border-color: rgba(124, 243, 255, 0.4); background: linear-gradient(180deg, rgba(124, 243, 255, 0.1), rgba(255, 255, 255, 0.03)); }
+.game-top__title {
+  font-size: 18px; font-weight: 800; letter-spacing: 0.3px;
+  color: var(--game-accent); text-shadow: 0 0 20px color-mix(in srgb, var(--game-accent) 45%, transparent);
+}
+.game-top__stats { margin-left: auto; display: flex; gap: 10px; }
+.game-chip {
+  display: flex; flex-direction: column; align-items: center; line-height: 1.1;
+  padding: 7px 14px; border-radius: 12px; min-width: 62px;
+  background: var(--card-grad) padding-box, var(--border-grad) border-box;
+  border: 1px solid transparent; box-shadow: var(--glass-hi);
+}
+.game-chip b { font-family: "JetBrains Mono", monospace; font-size: 18px; font-weight: 700; }
+.game-chip small { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 2px; }
+
+/* countdown */
+.game-countdown {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+  background: rgba(4, 5, 13, 0.35); backdrop-filter: blur(2px);
+}
+.game-countdown span {
+  font-family: "Sora", sans-serif; font-weight: 800; font-size: 20vh;
+  color: var(--game-accent);
+  text-shadow: 0 0 60px color-mix(in srgb, var(--game-accent) 55%, transparent);
+}
+.game-countdown span.is-pop { animation: cdPop 0.6s var(--spring) both; }
+@keyframes cdPop { 0% { transform: scale(0.3); opacity: 0; } 55% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+
+/* mid-screen banner (waves / combos) */
+.game-banner {
+  position: absolute; top: 20%; left: 0; right: 0; z-index: 4; text-align: center; pointer-events: none;
+}
+.game-banner span {
+  display: inline-block; padding: 10px 26px; border-radius: 999px;
+  font-family: "Sora", sans-serif; font-weight: 800; font-size: 28px; letter-spacing: 1px;
+  color: #fff; background: rgba(6, 10, 26, 0.7);
+  border: 1px solid color-mix(in srgb, var(--game-accent) 55%, transparent);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--game-accent) 30%, transparent);
+}
+.game-banner.is-pop span { animation: bannerPop 0.5s var(--spring) both; }
+@keyframes bannerPop { 0% { transform: scale(0.6) translateY(10px); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+
+/* ============ GAME OVER ============ */
+.game-over {
+  position: absolute; inset: 0; z-index: 8; display: grid; place-items: center;
+  background: rgba(3, 5, 13, 0.72); backdrop-filter: blur(8px);
+}
+.game-over[hidden] { display: none; }
+.game-over__card {
+  position: relative; overflow: hidden; width: min(460px, 92vw); text-align: center;
+  padding: 34px 30px;
+  background:
+    radial-gradient(60% 44% at 50% 0%, color-mix(in srgb, var(--game-accent) 12%, transparent), transparent 62%) padding-box,
+    var(--card-grad) padding-box, var(--border-grad) border-box;
+  border: 1px solid transparent; border-radius: var(--radius);
+  box-shadow: var(--shadow-lg), var(--glass-hi);
+  animation: dialogPop 0.44s var(--spring) both;
+}
+.game-over__badge {
+  display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 2px;
+  padding: 5px 14px; border-radius: 999px; color: var(--game-accent);
+  border: 1px solid color-mix(in srgb, var(--game-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--game-accent) 10%, transparent);
+  margin-bottom: 14px;
+}
+.game-over__title { font-size: 24px; font-weight: 800; margin-bottom: 20px; }
+.game-over__stats { display: flex; justify-content: center; gap: 26px; margin-bottom: 18px; }
+.game-over__stat { display: flex; flex-direction: column; }
+.game-over__stat span { font-family: "JetBrains Mono", monospace; font-size: 30px; font-weight: 700; color: var(--ink); }
+.game-over__stat small { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 3px; }
+.game-over__best {
+  font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 20px;
+}
+.game-over__best.is-best { color: var(--you); text-shadow: 0 0 18px rgba(255, 210, 63, 0.4); animation: bestPulse 1.4s ease-in-out infinite; }
+@keyframes bestPulse { 50% { transform: scale(1.04); } }
+.game-over__actions { display: flex; gap: 12px; justify-content: center; margin-bottom: 14px; }
+.game-over__hint { font-size: 12px; color: var(--muted); }
+
+/* ============ LIGHT THEME OVERRIDES ============ */
+[data-theme="light"] .arcade-hub { background: rgba(228, 234, 248, 0.7); }
+[data-theme="light"] .game-stage {
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(180, 200, 240, 0.6), transparent 60%),
+    linear-gradient(180deg, #e8eef8 0%, #dbe3f0 100%);
+}
+[data-theme="light"] .game-over, [data-theme="light"] .game-countdown { background: rgba(228, 234, 248, 0.55); }
