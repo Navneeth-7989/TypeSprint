@@ -147,6 +147,12 @@
   // Draws a pill with the word centered at (x,y); typed prefix glows.
   function wordTag(c, x, y, target, o) {
     o = o || {};
+    // wrong-letter feedback: jitter the tag + flash it red while shakeUntil is live
+    var shakeK = 0;
+    if (target.shakeUntil) {
+      var rem = target.shakeUntil - performance.now();
+      if (rem > 0) { shakeK = Math.min(1, rem / 320); x += Math.sin(performance.now() * 0.05) * 6 * shakeK; }
+    }
     var size = o.size || 17;
     c.font = "700 " + size + "px 'JetBrains Mono', monospace";
     c.textBaseline = "middle";
@@ -160,14 +166,15 @@
     // pill background
     c.save();
     var accent = o.accent || "#7cf3ff";
+    var shaking = shakeK > 0;
     roundRect(c, bx, by, boxW, boxH, boxH / 2);
     c.fillStyle = o.bg || "rgba(6,10,26,0.82)";
-    c.shadowColor = target.isActive ? accent : "rgba(0,0,0,0.5)";
-    c.shadowBlur = target.isActive ? 20 : 8;
+    c.shadowColor = shaking ? "#ff5d73" : (target.isActive ? accent : "rgba(0,0,0,0.5)");
+    c.shadowBlur = shaking ? 22 : (target.isActive ? 20 : 8);
     c.fill();
     c.shadowBlur = 0;
-    c.lineWidth = target.isActive ? 2 : 1.2;
-    c.strokeStyle = target.isActive ? accent : (o.border || "rgba(154,170,235,0.35)");
+    c.lineWidth = shaking ? 2.4 : (target.isActive ? 2 : 1.2);
+    c.strokeStyle = shaking ? "#ff5d73" : (target.isActive ? accent : (o.border || "rgba(154,170,235,0.35)"));
     roundRect(c, bx, by, boxW, boxH, boxH / 2); c.stroke();
     c.restore();
 
@@ -222,8 +229,10 @@
       typedLen++; activeTarget.typedCount = typedLen;
       if (typedLen >= activeTarget.word.length) completeTarget();
     } else {
+      // Wrong letter: stay put — keep the progress so far and let the player
+      // simply retype the correct next letter. Just shake the word for feedback.
+      activeTarget.shakeUntil = api.now() + 320;
       if (current.miss) current.miss(api, ch);
-      clearActive();
     }
   }
   function completeTarget() { var t = activeTarget; clearActive(); if (current.hit) current.hit(t, api); }
