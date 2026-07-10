@@ -527,7 +527,7 @@
       this._pop(b.x, b.y - b.no - 10, "+" + fmt(gain), b.boss ? "#ffd23f" : "#7cf3ff", 1.0, b.boss ? 22 : 16);
       this._updateHUD(a);
       if (b.boss) { a.banner("RAID CLEARED! +" + fmt(gain), 900); if (a.sound) a.sound.levelup(); }
-      else if (hard) a.banner("HARD WORD! +" + fmt(gain), 650);
+      else { if (a.sound) a.sound.pop(); if (hard) a.banner("HARD WORD! +" + fmt(gain), 650); }
       this._checkEnd(a);
     },
 

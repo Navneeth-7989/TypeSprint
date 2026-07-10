@@ -128,14 +128,39 @@
     og.gain.exponentialRampToValueAtTime(0.6 * mag, t + 0.02); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
     o.connect(og); og.connect(masterGain); o.start(t); o.stop(t + 0.55);
   }
-  // falling-bomb whistle: descending tone
+  // falling-bomb ticking: a tense clock-style tick-tock countdown as the bomb drops
   function sfxWhistle(delay) {
-    if (!AC || !audioOn) return; var t = AC.currentTime + (delay || 0);
-    var o = AC.createOscillator(); o.type = "triangle";
-    o.frequency.setValueAtTime(1500, t); o.frequency.exponentialRampToValueAtTime(280, t + 0.5);
+    if (!AC || !audioOn) return; var t0 = AC.currentTime + (delay || 0);
+    var n = 6, gap = 0.135;
+    for (var i = 0; i < n; i++) {
+      var t = t0 + i * gap, hi = i % 2 === 0; // alternate tick / tock
+      // sharp click transient — the mechanical snap of the tick
+      var src = AC.createBufferSource(); src.buffer = getNoise();
+      var bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = hi ? 2300 : 1500; bp.Q.value = 7;
+      var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.3, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      src.connect(bp); bp.connect(g); g.connect(masterGain); src.start(t); src.stop(t + 0.06);
+      // short tonal ping so the tick has a hard, clocky body
+      var o = AC.createOscillator(); o.type = "square"; o.frequency.setValueAtTime(hi ? 1300 : 900, t);
+      var og = AC.createGain(); og.gain.setValueAtTime(0.0001, t);
+      og.gain.exponentialRampToValueAtTime(0.13, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+      o.connect(og); og.connect(masterGain); o.start(t); o.stop(t + 0.05);
+    }
+  }
+  // defuse pop: a snappy, satisfying "pop" when a bomb is typed away
+  function sfxPop() {
+    if (!AC || !audioOn) return; var t = AC.currentTime;
+    // body — a quick upward pitch blip that gives the bubbly "pop" feel
+    var o = AC.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(340, t); o.frequency.exponentialRampToValueAtTime(820, t + 0.08);
     var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.12, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-    o.connect(g); g.connect(masterGain); o.start(t); o.stop(t + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.34, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(g); g.connect(masterGain); o.start(t); o.stop(t + 0.18);
+    // click transient — the crisp snap of the pop
+    var src = AC.createBufferSource(); src.buffer = getNoise();
+    var bp = AC.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1900; bp.Q.value = 0.8;
+    var g2 = AC.createGain(); g2.gain.setValueAtTime(0.22, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(bp); bp.connect(g2); g2.connect(masterGain); src.start(t); src.stop(t + 0.06);
   }
   // defeat sting: two detuned saws sinking down + low rumble
   function sfxGameOver() {
@@ -348,7 +373,7 @@
     word: wordByLen, pick: pick, rand: rand, randInt: randInt, clamp: clamp,
     burst: burst, shake: doShake, wordTag: wordTag, roundRect: roundRect,
     end: endGame,
-    sound: { boom: sfxBoom, whistle: sfxWhistle, over: sfxGameOver, shot: sfxShot, tick: sfxTick, hurt: sfxHurt, levelup: sfxLevelUp, combo: sfxCombo },
+    sound: { boom: sfxBoom, whistle: sfxWhistle, pop: sfxPop, over: sfxGameOver, shot: sfxShot, tick: sfxTick, hurt: sfxHurt, levelup: sfxLevelUp, combo: sfxCombo },
     // 3D helpers (for is3D games)
     get THREE() { return window.THREE; },
     get renderer() { return renderer3d; },
