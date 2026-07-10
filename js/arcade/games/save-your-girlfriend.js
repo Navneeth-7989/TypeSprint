@@ -45,7 +45,7 @@
     gapBase: 1.7, gapPerLevel: 0.06, gapMin: 0.4,
     concurrencyBase: 3, concurrencyStep: 0.6, concurrencyMax: 12,
     countBase: 6, countPerLevel: 2, countMax: 26,
-    bossEvery: 5, comboMultStep: 0.15, comboMultCap: 8
+    bossEvery: 5
   };
   var BASE_CAM = [15, 6.5, 0], LOOK = [-6, 2.6, 0];
 
@@ -384,7 +384,7 @@
   function enemyReaches(e) {
     if (e.dead) return; e.dead = true;
     if (e.def.category === "boss") G.bossAlive = false;
-    G.hearts -= e.damage; G.combo = 0;
+    G.hearts -= e.damage;
     G.gfShakeT = 0.4; G.shakeMag = Math.min(1.4, G.shakeMag + 0.6); G._a.sound.hurt();
     G._flashT = 0.4;
     removeEnemyMesh(e.mesh); splice(e);
@@ -398,7 +398,6 @@
     // clear leftovers
     for (var i = 0; i < G.enemies.length; i++) removeEnemyMesh(G.enemies[i].mesh);
     G.enemies.length = 0;
-    G.combo = 0;
     G.waveStart = G.runElapsed;
     G.hasBoss = (n % CFG.bossEvery === 0); G.bossAlive = false;
     G.toSpawn = Math.min(CFG.countMax, CFG.countBase + n * CFG.countPerLevel);
@@ -409,11 +408,11 @@
   }
   function completeLevel() {
     var perfect = G.hearts >= CFG.maxHearts;
-    var bonus = G.hearts * 250 + (perfect ? 1000 : 0);
+    var bonus = 50 + (perfect ? 20 : 0); // +50 per level cleared, small perfect-wave bonus
     G.score += bonus;
     G._a.sound.levelup();
     G.gfHopT = 1.0;
-    G._a.banner((perfect ? "PERFECT WAVE +1000 · " : "") + "LEVEL " + (G.level + 1), 1100);
+    G._a.banner((perfect ? "PERFECT WAVE +20 · " : "") + "LEVEL " + (G.level + 1), 1100);
     startLevel(G.level + 1);
   }
   function checkWaveEnd() { if (G.toSpawn <= 0 && G.enemies.length === 0 && !G.bossAlive) completeLevel(); }
@@ -427,14 +426,11 @@
       title: "You reached level " + G.level,
       stats: [
         { k: "Score", v: Math.round(G.score).toLocaleString() },
-        { k: "Level", v: G.level },
-        { k: "Max Combo", v: "x" + G.comboMax },
-        { k: "WPM", v: wpm }
+        { k: "WPM", v: wpm },
+        { k: "Accuracy", v: acc + "%" }
       ]
     });
   }
-
-  function comboMult() { return Math.min(CFG.comboMultCap, 1 + G.combo * CFG.comboMultStep); }
 
   function updateHUD() {
     var a = G._a;
@@ -445,7 +441,6 @@
     a.setStats({
       Level: G.level,
       Score: Math.round(G.score).toLocaleString(),
-      Combo: G.combo > 0 ? "x" + comboMult().toFixed(1) : "—",
       Hearts: h,
       WPM: wpm
     });
@@ -525,7 +520,7 @@
     introInit: function (a) {
       G = this; this._a = a; THREE = a.THREE;
       this.enemies = [];
-      this.level = 1; this.score = 0; this.hearts = CFG.maxHearts; this.combo = 0; this.comboMax = 0;
+      this.level = 1; this.score = 0; this.hearts = CFG.maxHearts;
       this.runElapsed = 0; this.keysTyped = 0; this.keysCorrect = 0;
       this.toSpawn = 0; this.spawnTimer = 999; this.hasBoss = false; this.bossAlive = false;
       this.hitstopT = 0; this._flashT = 0;
@@ -557,7 +552,7 @@
       // Rebuild fresh (intro may or may not have run). Dispose any prior scene first.
       if (this.scene) this.dispose();
       this.enemies = [];
-      this.level = 1; this.score = 0; this.hearts = CFG.maxHearts; this.combo = 0; this.comboMax = 0;
+      this.level = 1; this.score = 0; this.hearts = CFG.maxHearts;
       this.runElapsed = 0; this.waveStart = 0; this.keysTyped = 0; this.keysCorrect = 0;
       this.hitstopT = 0; this._flashT = 0; this._it = 0;
       buildScene(a);
@@ -607,7 +602,7 @@
       return out;
     },
 
-    // Word fully typed → destroy the enemy, score + combo.
+    // Word fully typed → destroy the enemy and score.
     hit: function (e, a) {
       if (!e || e.dead) return;
       // count the whole word toward WPM/accuracy
@@ -615,11 +610,9 @@
       this.keysTyped += e.word.replace(/ /g, "").length;
       tmp(); hitPoint(e, _v); fireTracer(_v); a.sound.shot();
       var scr = a.toScreen(e.mesh.position.clone().add(new THREE.Vector3(0, e.def.labelY * 0.5, 0)), this.camera);
-      this.combo++; this.comboMax = Math.max(this.comboMax, this.combo);
-      var gain = Math.round(e.def.score * comboMult());
-      this.score += gain;
+      // simple scoring: 10 for a basic foe, 20 for a long/tough word, 30 for the boss
+      this.score += e.def.category === "boss" ? 30 : (e.word.replace(/ /g, "").length >= 7 ? 20 : 10);
       if (scr.visible) a.burst(scr.x, scr.y, e.def.color, 14);
-      if (this.combo > 0 && this.combo % 5 === 0) { a.sound.combo(this.combo / 5); a.banner("COMBO x" + comboMult().toFixed(1), 700); this.shakeMag = Math.min(1.4, this.shakeMag + 0.5); }
       killEnemy(e);
       updateHUD();
       checkWaveEnd();

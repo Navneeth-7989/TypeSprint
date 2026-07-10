@@ -55,6 +55,7 @@
   var stats = {};
   var particles = [], shake = 0;
   var cdTimers = [], bannerTimer = 0;
+  var overAnimToken = 0; // invalidates in-flight results count-ups when the card is rebuilt
 
   /* ---------------- shared Three.js renderer (3D games) ----------------
      A canvas holds only one context type, so 3D games render their scene to
@@ -521,6 +522,38 @@
 
   function stopLoop() { running = false; phase = "idle"; cancelAnimationFrame(raf); clearCdTimers(); stage.classList.remove("intro-cine"); }
 
+  /* Animated count-up for a results value. Parses the first numeric run out of
+     the string so prefixes/suffixes ("x7", "88%", "1,234", "12s") are preserved,
+     then eases from 0 to the target. Non-numeric values are set verbatim. */
+  function animateCount(el, raw, delay) {
+    var str = String(raw);
+    var m = str.match(/-?\d[\d,]*(\.\d+)?/);
+    if (!m) { el.textContent = str; return; }
+    var numStr = m[0], pre = str.slice(0, m.index), post = str.slice(m.index + numStr.length);
+    var hasComma = numStr.indexOf(",") >= 0;
+    var decimals = (numStr.split(".")[1] || "").length;
+    var target = parseFloat(numStr.replace(/,/g, ""));
+    if (!isFinite(target)) { el.textContent = str; return; }
+    function fnum(v) {
+      if (decimals > 0) { var s = v.toFixed(decimals); if (hasComma) { var p = s.split("."); p[0] = (+p[0]).toLocaleString(); s = p.join("."); } return s; }
+      var iv = Math.round(v); return hasComma ? iv.toLocaleString() : String(iv);
+    }
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { el.textContent = pre + fnum(target) + post; return; }
+    var token = overAnimToken, dur = 720;
+    el.textContent = pre + fnum(0) + post;
+    setTimeout(function () {
+      if (token !== overAnimToken || !el.isConnected) { return; }
+      var start = performance.now();
+      (function tick(now) {
+        if (token !== overAnimToken || !el.isConnected) return;
+        var t = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        el.textContent = pre + fnum(target * e) + post;
+        if (t < 1) requestAnimationFrame(tick); else el.textContent = pre + fnum(target) + post;
+      })(performance.now());
+    }, delay || 0);
+  }
+
   function endGame(res) {
     stopLoop();
     sfxGameOver(); // defeat sting as the post-game dialog pops
@@ -531,11 +564,14 @@
     overBadge.textContent = res.badge || "GAME OVER";
     overTitle.textContent = res.title || "Nice run!";
     overStats.innerHTML = "";
-    (res.stats || []).forEach(function (s) {
+    overAnimToken++; // supersede any count-ups still running from a prior card
+    (res.stats || []).forEach(function (s, i) {
       var d = document.createElement("div");
       d.className = "game-over__stat";
-      d.innerHTML = "<span>" + s.v + "</span><small>" + s.k + "</small>";
+      var span = document.createElement("span"), small = document.createElement("small");
+      small.textContent = s.k; d.appendChild(span); d.appendChild(small);
       overStats.appendChild(d);
+      animateCount(span, s.v, 160 + i * 90); // stagger to match the chips' cascade-in
     });
     overBest.hidden = false;
     if (isBest) { overBest.textContent = "🏆 New personal best!"; overBest.classList.add("is-best"); }
